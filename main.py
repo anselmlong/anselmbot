@@ -23,7 +23,7 @@ load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
 # Define states for conversation
-MENU, WAITING_REMINDER_TEXT, WAITING_REMINDER_TIME, WAITING_PHOTO_UPLOAD, WAITING_BUBBLE_TEXT, WAITING_VIDEO_UPLOAD = range(6)
+MENU, WAITING_REMINDER_TEXT, WAITING_REMINDER_TIME, WAITING_PHOTO_UPLOAD, WAITING_BUBBLE_TEXT, WAITING_VIDEO_UPLOAD, WAITING_NAME_INPUT, DEFAULT = range(8)
 
 # Set up logging for the bot
 logging.basicConfig(
@@ -132,6 +132,46 @@ def get_user_role(user_id: int) -> Optional[str]:
         logger.error(f"Error getting user role: {e}")
         return None
 
+def get_user_name(user_id: int) -> Optional[str]:
+    """
+    Get the name of a user.
+    
+    Args:
+        user_id (int): Telegram user ID
+        
+    Returns:
+        Optional[str]: User name or None if not set
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        user_names = data.get('user_names', {})
+        return user_names.get(str(user_id))
+    except Exception as e:
+        logger.error(f"Error getting user name: {e}")
+        return None
+
+def set_user_name(user_id: int, name: str) -> bool:
+    """
+    Set the name of a user.
+    
+    Args:
+        user_id (int): Telegram user ID
+        name (str): Name to set
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        if 'user_names' not in data:
+            data['user_names'] = {}
+        
+        data['user_names'][str(user_id)] = name
+        return save_json_data('bot_data.json', data)
+    except Exception as e:
+        logger.error(f"Error setting user name: {e}")
+        return False
+
 def set_user_role(user_id: int, role: str) -> bool:
     """
     Set the role of a user.
@@ -234,13 +274,11 @@ async def show_main_menu_from_query(query) -> int:
     
     # Base menu options
     keyboard = [
-        [InlineKeyboardButton("😂 tell me a joke", callback_data="joke")],
-        [InlineKeyboardButton("💕 gimme some rizz", callback_data="flirt")],
+        [InlineKeyboardButton(" gimme some rizz", callback_data="flirt")],
         [InlineKeyboardButton("📸 i wanna see you", callback_data="picture")],
         [InlineKeyboardButton("🫧 i want a bubble", callback_data="bubble")],
         [InlineKeyboardButton("💪 i need motivation", callback_data="motivation")],
-        [InlineKeyboardButton("📍 where are you?", callback_data="location")],
-        [InlineKeyboardButton("📊 show me our stats", callback_data="stats")],
+        [InlineKeyboardButton(" show me our stats", callback_data="stats")],
         [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")],
         [InlineKeyboardButton("🍽️ where should we eat?", callback_data="restaurant")]
     ]
@@ -275,7 +313,7 @@ async def show_main_menu_from_query(query) -> int:
     else:
         back_message = (
             "💫 **welcome to the main menu!** 💫\n"
-            "⚠️ please set your role first to access all features!\n\n"
+            "⚠️ please set your role first to access all features! 💕\n\n"
             "what would you like to do? ✨"
         )
     
@@ -332,10 +370,13 @@ async def handle_flirt(query) -> int:
         data = load_json_data('bot_data.json')
         
         if 'flirt_messages' not in data or not data['flirt_messages']:
-            await query.edit_message_text(text="sorry, i'm feeling a bit tongue-tied right now! 😅")
-            import asyncio
-            await asyncio.sleep(2)
-            return await show_main_menu_from_query(query)
+            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="sorry, i'm feeling a bit tongue-tied right now! 😅",
+                reply_markup=reply_markup
+            )
+            return MENU
         
         flirt_messages = data['flirt_messages']
         random_flirt = random.choice(flirt_messages)
@@ -351,53 +392,12 @@ async def handle_flirt(query) -> int:
         
     except Exception as e:
         logger.error(f"Error in handle_flirt: {e}")
-        await query.edit_message_text(text="oops! something went wrong with my rizz game... L rizz 😬")
-        import asyncio
-        await asyncio.sleep(2)
-        return await show_main_menu_from_query(query)
-    
-    return MENU
-
-# Joke handler function
-async def handle_joke(query) -> int:
-    """
-    Handle joke button click and send a random joke.
-    Loads jokes from bot_data.json and sends a random one to cheer up the user.
-    
-    Args:
-        query: Telegram callback query object
-        
-    Returns:
-        int: MENU to return to main menu after showing joke
-    """
-    try:
-        data = load_json_data('bot_data.json')
-        
-        if 'jokes' not in data or not data['jokes']:
-            await query.edit_message_text(text="sorry babe, my joke database is empty! 😅 but you're still the funniest thing in my life 😘")
-            # Return to menu after 2 seconds
-            import asyncio
-            await asyncio.sleep(2)
-            return await show_main_menu_from_query(query)
-        
-        jokes = data['jokes']
-        random_joke = random.choice(jokes)
-        
-        # Create inline keyboard with back to menu option
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
         await query.edit_message_text(
-            text=f"😂 {random_joke}",
+            text="oops! something went wrong with my rizz game... L rizz 😬",
             reply_markup=reply_markup
         )
-        
-    except Exception as e:
-        logger.error(f"Error in handle_joke: {e}")
-        await query.edit_message_text(text="oops! my joke machine broke 🤖💔 but you always make me laugh anyway!")
-        import asyncio
-        await asyncio.sleep(2)
-        return await show_main_menu_from_query(query)
     
     return MENU
 
@@ -421,7 +421,7 @@ async def handle_picture(query) -> int:
             keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="⚠️ please set your role first using the 'set my role' button to access pictures!",
+                text="⚠️ please set your role first using the 'set my role' button to access pictures! 💕",
                 reply_markup=reply_markup
             )
             return MENU
@@ -505,7 +505,7 @@ async def handle_bubble(query) -> int:
             keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="⚠️ please set your role first using the 'set my role' button to access bubbles!",
+                text="⚠️ please set your role first using the 'set my role' button to access bubbles! 💕",
                 reply_markup=reply_markup
             )
             return MENU
@@ -517,7 +517,7 @@ async def handle_bubble(query) -> int:
             keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="🫧 *pop* no video bubbles available right now!\n\n(your partner hasn't submitted any video bubbles for you yet!)",
+                text="🫧 *pop* no video bubbles available right now! 😅\n\n(your partner hasn't submitted any video bubbles for you yet! 💕)",
                 reply_markup=reply_markup
             )
             return MENU
@@ -607,52 +607,6 @@ async def handle_motivation(query) -> int:
     
     return MENU
 
-# Location handler function
-async def handle_location(query) -> int:
-    """
-    Handle location button click and send partner's location.
-    For privacy/safety, this sends a general location or status message.
-    In a real implementation, you might integrate with location sharing APIs.
-    
-    Args:
-        query: Telegram callback query object
-        
-    Returns:
-        int: MENU to return to main menu after showing location
-    """
-    try:
-        # For security reasons, we'll send a general location/status instead of exact coordinates
-        # You can customize this based on your needs
-        location_messages = [
-            "📍 currently at: somewhere safe and thinking of you! 🏠💕",
-            "📍 location update: in my room missing you like crazy 🛏️❤️", 
-            "📍 i'm at the library studying (and daydreaming about you) 📚💭",
-            "📍 at home, probably eating something delicious and wishing you were here to share 🍜👫",
-            "📍 somewhere cozy, definitely thinking about our next adventure together 🗺️✨"
-        ]
-        
-        random_location = random.choice(location_messages)
-        
-        # Create inline keyboard with back to menu option
-        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            text=random_location,
-            reply_markup=reply_markup
-        )
-    
-    except Exception as e:
-        logger.error(f"Error in handle_location: {e}")
-        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="📍 i'm everywhere and nowhere... but always in your heart 💕🌍",
-            reply_markup=reply_markup
-        )
-    
-    return MENU
-
 # Stats handler function
 async def handle_stats(query) -> int:
     """
@@ -689,28 +643,32 @@ async def handle_stats(query) -> int:
         stats_message = "📊 **our statistics!** 📊\n\n"
         
         if exchange_days_left > 0:
-            stats_message += f"🎓 exchange days left: **{exchange_days_left} days**\n"
+            stats_message += f"🎓 exchange days left: **{exchange_days_left} days** ⏰\n"
         elif exchange_days_left == 0:
-            stats_message += f"🎓 exchange ends: **TODAY!** 🎉\n"
+            stats_message += f"🎓 exchange ends: **today!** 🎉\n"
         else:
             stats_message += f"🎓 exchange completed **{abs(exchange_days_left)} days ago** ✅\n"
 
         if relationship_days > 0:
             years = relationship_days // 365
             remaining_days = relationship_days % 365
+            months = relationship_days // 30
+            remaining_days = relationship_days % 30
             if years > 0:
-                stats_message += f"💕 together for: **{years} year(s), {remaining_days} days**\n"
+                stats_message += f"💕 together for: **{years} year(s), {remaining_days} days** 🥰\n"
+            elif months > 0:
+                stats_message += f"💕 together for: **{months} month(s), {remaining_days} days** 🥰\n"
             else:
-                stats_message += f"💕 together for: **{relationship_days} days**\n"
+                stats_message += f"💕 together for: **{relationship_days} days** 🥰\n"
         
         if days_until_meeting > 0:
-            stats_message += f"✈️ days until we meet: **{days_until_meeting} days**\n"
+            stats_message += f"✈️ days until we meet: **{days_until_meeting} days** 🤗\n"
         elif days_until_meeting == 0:
-            stats_message += f"✈️ OMGGG meeting day: **TODAY!** 🥳\n"
+            stats_message += f"✈️ omggg meeting day: **today!** 🥳\n"
         else:
             stats_message += f"✈️ last met **{abs(days_until_meeting)} days ago** 🥺\n"
         
-        stats_message += f"\n💫 statistically, love level: 100/10!!! 💫"
+        stats_message += f"\n💫 statistically, love level: **100/10!!!** 💫"
         
         # Create inline keyboard with back to menu option
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
@@ -753,10 +711,13 @@ async def handle_reminder(query) -> int:
     
     except Exception as e:
         logger.error(f"Error in handle_reminder: {e}")
-        await query.edit_message_text(text="oops! reminder system is taking a nap 😴 try again later!")
-        import asyncio
-        await asyncio.sleep(2)
-        return await show_main_menu_from_query(query)
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text="oops! reminder system is taking a nap 😴 try again later!",
+            reply_markup=reply_markup
+        )
+        return MENU
 
 async def process_reminder_text(update: Update, context: CallbackContext) -> int:
     """
@@ -774,12 +735,12 @@ async def process_reminder_text(update: Update, context: CallbackContext) -> int
         context.user_data['reminder_text'] = reminder_text
         
         await update.message.reply_text(
-            f"📝 got it! reminder: \"{reminder_text}\"\n\n"
+            f"📝 got it! reminder: \"{reminder_text}\" ✨\n\n"
             "⏰ when should i remind you? send me the time in format:\n"
-            "• **HH:MM** (e.g., 14:30 for 2:30 PM)\n"
-            "• or just say **now** for immediate reminder\n"
-            "• or **tomorrow** for same time tomorrow\n\n"
-            "_(type /cancel to go back to menu)_",
+            "• **HH:MM** (e.g., 14:30 for 2:30 PM) 🕐\n"
+            "• or just say **now** for immediate reminder ⚡\n"
+            "• or **tomorrow** for same time tomorrow 📅\n\n"
+            "_(type /cancel to go back to menu)_ 💕",
             parse_mode='Markdown'
         )
         return WAITING_REMINDER_TIME
@@ -811,26 +772,26 @@ async def process_reminder_time(update: Update, context: CallbackContext) -> int
         # Simple reminder processing (in a real bot, you'd use proper scheduling)
         if time_input == "now":
             await update.message.reply_text(
-                f"⏰ **REMINDER:** {reminder_text} 🔔", 
+                f"⏰ **reminder:** {reminder_text} 🔔", 
                 parse_mode='Markdown',
                 reply_markup=reply_markup
             )
         elif time_input == "tomorrow":
             await update.message.reply_text(
-                f"✅ reminder set for tomorrow: \"{reminder_text}\" \n"
-                "📝 (note: this is a demo - real scheduling would be implemented with proper task scheduler) ⏰",
+                f"✅ reminder set for tomorrow: \"{reminder_text}\" 📅\n"
+                "📝 (note: this is a demo - real scheduling would be implemented with proper task scheduler) 💻",
                 reply_markup=reply_markup
             )
         elif ":" in time_input:
             await update.message.reply_text(
-                f"✅ reminder set for {time_input}: \"{reminder_text}\" \n"
-                "📝 (note: this is a demo - real scheduling would be implemented with proper task scheduler) ⏰",
+                f"✅ reminder set for {time_input}: \"{reminder_text}\" ⏰\n"
+                "📝 (note: this is a demo - real scheduling would be implemented with proper task scheduler) 💻",
                 reply_markup=reply_markup
             )
         else:
             await update.message.reply_text(
-                f"⏰ reminder noted: \"{reminder_text}\" \n"
-                "📝 i'll try to remember that for you! (this is a demo feature) 💭",
+                f"⏰ reminder noted: \"{reminder_text}\" 📝\n"
+                "� i'll try to remember that for you! (this is a demo feature) ✨",
                 reply_markup=reply_markup
             )
         
@@ -874,10 +835,10 @@ async def handle_restaurant(query) -> int:
         random_restaurant = random.choice(restaurants)
         
         restaurant_message = f"🍽️ **{random_restaurant['name']}** 🍽️\n\n"
-        restaurant_message += f"📍 Type: {random_restaurant['type']}\n"
-        restaurant_message += f"📝 {random_restaurant['description']}\n"
-        restaurant_message += f"⭐ Rating: {random_restaurant['rating']}\n"
-        restaurant_message += f"✨ Vibe: {random_restaurant['vibe']}\n\n"
+        restaurant_message += f"📍 type: {random_restaurant['type']} 🏷️\n"
+        restaurant_message += f"📝 {random_restaurant['description']} ✨\n"
+        restaurant_message += f"⭐ rating: {random_restaurant['rating']} 🌟\n"
+        restaurant_message += f"✨ vibe: {random_restaurant['vibe']} 💫\n\n"
         restaurant_message += "bon appétit, babe! 😘🍴"
         
         # Create inline keyboard with back to menu option
@@ -914,8 +875,8 @@ async def handle_set_role(query) -> int:
     """
     try:
         keyboard = [
-            [InlineKeyboardButton("💙 I'm the boyfriend", callback_data="role_boyfriend")],
-            [InlineKeyboardButton("💖 I'm the girlfriend", callback_data="role_girlfriend")],
+            [InlineKeyboardButton("💙 i'm the boyfriend", callback_data="role_boyfriend")],
+            [InlineKeyboardButton("💖 i'm the girlfriend", callback_data="role_girlfriend")],
             [InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -933,34 +894,102 @@ async def handle_set_role(query) -> int:
 
 async def handle_role_selection(query, role: str) -> int:
     """
-    Handle role selection (boyfriend or girlfriend).
+    Handle role selection (boyfriend or girlfriend) and ask for name.
     
     Args:
         query: Telegram callback query object
         role: Selected role ('boyfriend' or 'girlfriend')
         
     Returns:
-        int: MENU to return to main menu after setting role
+        int: WAITING_NAME_INPUT to wait for name input
+    """
+    try:
+        await query.edit_message_text(
+            text=f"✨ okay ur the **{role}**! ✨\n\n"
+                 f"sooo... what's your name... i mean i know already but i need to put it in the software 💕\n\n"
+                 f"_(type /cancel to go back to menu)_",
+            parse_mode='Markdown'
+        )
+        return WAITING_NAME_INPUT
+    except Exception as e:
+        logger.error(f"Error in handle_role_selection: {e}")
+        return await show_main_menu_from_query(query)
+
+async def process_name_input(update: Update, context: CallbackContext) -> int:
+    """
+    Process the name input from user and complete role setup.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+        
+    Returns:
+        int: MENU to return to main menu after setting role and name
+    """
+    try:
+        user_id = update.effective_user.id
+        name = update.message.text.strip()
+        
+        # Get the selected role from context or determine from button press
+        # We'll need to track this differently - let's use a simple approach
+        # For now, let's ask them to choose role again with their name
+        
+        keyboard = [
+            [InlineKeyboardButton(f"💙 i'm {name}, the boyfriend", callback_data=f"confirm_boyfriend_{name}")],
+            [InlineKeyboardButton(f"💖 i'm {name}, the girlfriend", callback_data=f"confirm_girlfriend_{name}")],
+            [InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            f"okay **{name}** just to confirm ah: 😊\n\n",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+        return MENU
+    except Exception as e:
+        logger.error(f"Error processing name input: {e}")
+        await update.message.reply_text("oops! something went wrong. let's start over with /start 😅")
+        return MENU
+
+async def confirm_role_and_name(query, role: str, name: str) -> int:
+    """
+    Confirm and save the user's role and name.
+    
+    Args:
+        query: Telegram callback query object
+        role: Selected role ('boyfriend' or 'girlfriend')
+        name: User's name
+        
+    Returns:
+        int: MENU to return to main menu after setting role and name
     """
     try:
         user_id = query.from_user.id
-        success = set_user_role(user_id, role)
+        role_success = set_user_role(user_id, role)
+        name_success = set_user_name(user_id, name)
         
-        if success:
+        if role_success and name_success:
             emoji = "💙" if role == "boyfriend" else "💖"
+            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text=f"✅ role set successfully! {emoji}\n\nyou're now registered as the **{role}**!\n\n💕 you can now submit content for your partner and access role-specific features!"
+                text=f"✅ sup **{name}**! {emoji}\n\n"
+                     f"okay la ur the **{role}** la\n\n"
+                     f"💕 you can now submit content for your partner and access role-specific features. yippee!",
+                parse_mode='Markdown',
+                reply_markup=reply_markup
             )
-            import asyncio
-            await asyncio.sleep(3)
-            return await show_main_menu_from_query(query)
         else:
-            await query.edit_message_text(text="❌ failed to set role. please try again!")
-            import asyncio
-            await asyncio.sleep(2)
-            return await show_main_menu_from_query(query)
+            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="❌ cannot sia u try again",
+                reply_markup=reply_markup
+            )
     except Exception as e:
-        logger.error(f"Error in handle_role_selection: {e}")
+        logger.error(f"Error in confirm_role_and_name: {e}")
         return await show_main_menu_from_query(query)
 
 # Content submission handlers
@@ -977,17 +1006,21 @@ async def handle_submit_photo(query) -> int:
     try:
         user_role = get_user_role(query.from_user.id)
         if not user_role:
-            await query.edit_message_text(text="⚠️ please set your role first!")
-            import asyncio
-            await asyncio.sleep(2)
-            return await show_main_menu_from_query(query)
+            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="⚠️ please set your role first! 💕",
+                reply_markup=reply_markup
+            )
+            return MENU
         
         partner_role = "girlfriend" if user_role == "boyfriend" else "boyfriend"
         
         await query.edit_message_text(
             text=f"📸 **submit a photo for your {partner_role}!**\n\n"
                  "send me a photo and i'll add it to their collection! 💕\n\n"
-                 "_(type /cancel to go back to menu)_"
+                 "_(type /cancel to go back to menu)_",
+            parse_mode='Markdown'
         )
         return WAITING_PHOTO_UPLOAD
     except Exception as e:
@@ -1007,17 +1040,21 @@ async def handle_submit_bubble(query) -> int:
     try:
         user_role = get_user_role(query.from_user.id)
         if not user_role:
-            await query.edit_message_text(text="⚠️ please set your role first!")
-            import asyncio
-            await asyncio.sleep(2)
-            return await show_main_menu_from_query(query)
+            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="⚠️ please set your role first! 💕",
+                reply_markup=reply_markup
+            )
+            return MENU
         
         partner_role = "girlfriend" if user_role == "boyfriend" else "boyfriend"
         
         await query.edit_message_text(
-            text=f"🫧 **submit a video bubble for your {partner_role}!**\n\n"
+            text=f"🫧 **submit a video bubble for your {partner_role}!** \n\n"
                  "send me a video and i'll add it to their bubble collection! 💕\n\n"
-                 "_(type /cancel to go back to menu)_"
+                 " _(type /cancel to go back to menu)_ ",
+            parse_mode='Markdown'
         )
         return WAITING_VIDEO_UPLOAD
     except Exception as e:
@@ -1038,7 +1075,7 @@ async def process_photo_upload(update: Update, context: CallbackContext) -> int:
     try:
         user_role = get_user_role(update.effective_user.id)
         if not user_role:
-            await update.message.reply_text("⚠️ error: role not found. please set your role first!")
+            await update.message.reply_text("⚠️ error: role not found. please set your role first! 💕")
             return MENU
         
         # Get the photo
@@ -1073,7 +1110,7 @@ async def process_photo_upload(update: Update, context: CallbackContext) -> int:
             )
         else:
             await update.message.reply_text(
-                "❌ failed to save photo. please try again!",
+                "❌ failed to save photo. please try again! 😅",
                 reply_markup=reply_markup
             )
         
@@ -1102,7 +1139,7 @@ async def process_video_upload(update: Update, context: CallbackContext) -> int:
     try:
         user_role = get_user_role(update.effective_user.id)
         if not user_role:
-            await update.message.reply_text("⚠️ error: role not found. please set your role first!")
+            await update.message.reply_text("⚠️ error: role not found. please set your role first! 💕")
             return MENU
         
         # Get the video
@@ -1112,7 +1149,7 @@ async def process_video_upload(update: Update, context: CallbackContext) -> int:
             video = update.message.video_note
         
         if not video:
-            await update.message.reply_text("⚠️ please send a video file!")
+            await update.message.reply_text("⚠️ please send a video file! 📹")
             return MENU
         
         file = await context.bot.get_file(video.file_id)
@@ -1145,7 +1182,7 @@ async def process_video_upload(update: Update, context: CallbackContext) -> int:
             )
         else:
             await update.message.reply_text(
-                "❌ failed to save video bubble. please try again!",
+                "❌ failed to save video bubble. please try again! 😅",
                 reply_markup=reply_markup
             )
         
@@ -1157,6 +1194,28 @@ async def process_video_upload(update: Update, context: CallbackContext) -> int:
             "oops! something went wrong while uploading your video bubble 🫧💔",
             reply_markup=reply_markup
         )
+    
+    return MENU
+
+async def process_text(update: Update, context: CallbackContext) -> int:
+    """
+    Process text input from user.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+        
+    Returns:
+        int: MENU to return to main menu
+    """
+    logger.info(f"Received text input: {update.message.text}")
+    try:
+        text = update.message.text.strip()
+        await update.message.reply_text(f"{text}? okay buddy... /start to chat bro... 😎")
+        
+    except Exception as e:
+        logger.error(f"Error processing text input: {e}")
+        await update.message.reply_text("sorry something broke... 😅")
     
     return MENU
 
@@ -1175,15 +1234,14 @@ async def start(update: Update, context: CallbackContext) -> int:
     """
     user_id = update.effective_user.id
     user_role = get_user_role(user_id)
+    user_name = get_user_name(user_id)
     
     # Base menu options
     keyboard = [
-        [InlineKeyboardButton("😂 tell me a joke", callback_data="joke")],
         [InlineKeyboardButton("💕 gimme some rizz", callback_data="flirt")],
         [InlineKeyboardButton("📸 i wanna see you", callback_data="picture")],
         [InlineKeyboardButton("🫧 i want a bubble", callback_data="bubble")],
         [InlineKeyboardButton("💪 i need motivation", callback_data="motivation")],
-        [InlineKeyboardButton("📍 where are you?", callback_data="location")],
         [InlineKeyboardButton("📊 show me our stats", callback_data="stats")],
         [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")],
         [InlineKeyboardButton("🍽️ where should we eat?", callback_data="restaurant")]
@@ -1211,11 +1269,10 @@ async def start(update: Update, context: CallbackContext) -> int:
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if user_role:
+        name_display = f" {user_name}" if user_name else ""
         welcome_message = (
-            f"💕 **hi chat, welcome back, {user_role}!** 💕\n"
-            f"role: **{user_role}** �\n\n"
+            f"💕 **hi {user_role}{name_display} :P, welcome back!!** 💕\n"
             "i'm here to make your day brighter with:\n"
-            "• jokes to cheer you up 😂\n"
             "• flirty messages 💕\n" 
             "• pictures from your partner 📸\n"
             "• motivational pep talks 💪\n"
@@ -1225,7 +1282,7 @@ async def start(update: Update, context: CallbackContext) -> int:
             "• restaurant suggestions 🍽️\n\n"
             "**plus, you can now submit content for your partner!** ✨\n\n"
             "**choose what you need right now! ✨**\n"
-            "_(i'll keep running until you type /stop or click exit)_"
+            "_(i'll keep running until you type /stop or click exit)_ 💕"
         )
     else:
         welcome_message = (
@@ -1235,15 +1292,14 @@ async def start(update: Update, context: CallbackContext) -> int:
             "• what pictures you'll see 📸\n"
             "• what bubbles you'll receive 🫧\n"
             "• what content you can submit 📤\n\n"
-            "click '👤 set my role' to get started!\n\n"
+            "click '👤 set my role' to get started! 💕\n\n"
             "**basic features available:**\n"
-            "• jokes to cheer you up 😂\n"
             "• flirty messages 💕\n" 
             "• motivational pep talks 💪\n"
             "• relationship stats 📊\n"
             "• reminders ⏰\n"
             "• restaurant suggestions 🍽️\n\n"
-            "_(i'll keep running until you type /stop or click exit)_"
+            "_(i'll keep running until you type /stop or click exit)_ ✨"
         )
     
     await update.message.reply_text(
@@ -1269,9 +1325,7 @@ async def button(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
     await query.answer()
     
-    if query.data == "joke":
-        return await handle_joke(query)
-    elif query.data == "flirt":
+    if query.data == "flirt":
         return await handle_flirt(query)
     elif query.data == "picture":
         return await handle_picture(query)
@@ -1279,8 +1333,6 @@ async def button(update: Update, context: CallbackContext) -> int:
         return await handle_bubble(query)
     elif query.data == "motivation":
         return await handle_motivation(query)
-    elif query.data == "location":
-        return await handle_location(query)
     elif query.data == "stats":
         return await handle_stats(query)
     elif query.data == "reminder":
@@ -1293,6 +1345,12 @@ async def button(update: Update, context: CallbackContext) -> int:
         return await handle_role_selection(query, "boyfriend")
     elif query.data == "role_girlfriend":
         return await handle_role_selection(query, "girlfriend")
+    elif query.data.startswith("confirm_boyfriend_"):
+        name = query.data.replace("confirm_boyfriend_", "")
+        return await confirm_role_and_name(query, "boyfriend", name)
+    elif query.data.startswith("confirm_girlfriend_"):
+        name = query.data.replace("confirm_girlfriend_", "")
+        return await confirm_role_and_name(query, "girlfriend", name)
     elif query.data == "submit_photo":
         return await handle_submit_photo(query)
     elif query.data == "submit_bubble":
@@ -1303,10 +1361,13 @@ async def button(update: Update, context: CallbackContext) -> int:
         await query.edit_message_text(text="goodbye love! thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!")
         return ConversationHandler.END
     else:
-        await query.edit_message_text(text="unknown option selected. let's try again! 🔄")
-        import asyncio
-        await asyncio.sleep(1)
-        return await show_main_menu_from_query(query)
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text="unknown option selected. let's try again! 🔄",
+            reply_markup=reply_markup
+        )
+        return MENU
 
 # Stop command handler
 async def stop(update: Update, context: CallbackContext) -> int:
@@ -1340,12 +1401,10 @@ async def cancel(update: Update, context: CallbackContext) -> int:
     
     # Base menu options
     keyboard = [
-        [InlineKeyboardButton("😂 tell me a joke", callback_data="joke")],
         [InlineKeyboardButton("💕 gimme some rizz", callback_data="flirt")],
         [InlineKeyboardButton("📸 i wanna see you", callback_data="picture")],
         [InlineKeyboardButton("🫧 i want a bubble", callback_data="bubble")],
         [InlineKeyboardButton("💪 i need motivation", callback_data="motivation")],
-        [InlineKeyboardButton("📍 where are you?", callback_data="location")],
         [InlineKeyboardButton("📊 show me our stats", callback_data="stats")],
         [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")],
         [InlineKeyboardButton("🍽️ where should we eat?", callback_data="restaurant")]
@@ -1375,7 +1434,7 @@ async def cancel(update: Update, context: CallbackContext) -> int:
     if user_role:
         message_text = f"💫 **back to the main menu!** 💫\nrole: **{user_role}** 👤\n\nwhat would you like to do next? ✨"
     else:
-        message_text = "💫 **back to the main menu!** 💫\n⚠️ please set your role first to access all features!\n\nwhat would you like to do? ✨"
+        message_text = "💫 **back to the main menu!** 💫\n⚠️ please set your role first to access all features! 💕\n\nwhat would you like to do? ✨"
     
     await update.message.reply_text(
         message_text,
@@ -1403,11 +1462,16 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            MENU: [CallbackQueryHandler(button)],
+            MENU: [
+                CallbackQueryHandler(button),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, process_text)
+            ],
             WAITING_REMINDER_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_reminder_text)],
             WAITING_REMINDER_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_reminder_time)],
             WAITING_PHOTO_UPLOAD: [MessageHandler(filters.PHOTO, process_photo_upload)],
             WAITING_VIDEO_UPLOAD: [MessageHandler(filters.VIDEO | filters.VIDEO_NOTE, process_video_upload)],
+            WAITING_NAME_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_name_input)],
+            DEFAULT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_text)]
         },
         fallbacks=[
             CommandHandler("cancel", cancel),

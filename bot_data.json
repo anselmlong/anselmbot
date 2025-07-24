@@ -30,43 +30,7 @@
     "you're not just a survivor, you're a warrior princess. and warriors don't give up! ⚔️👸",
     "remember: you've overcome 100% of your bad days so far. that's a perfect track record! 📈💫"
   ],
-  "restaurant_suggestions": [
-    {
-      "name": "Lau Pa Sat",
-      "type": "Hawker Center",
-      "description": "iconic hawker center with satay street",
-      "rating": "4.2/5",
-      "vibe": "local, bustling, authentic"
-    },
-    {
-      "name": "Newton Food Centre",
-      "type": "Hawker Center",
-      "description": "famous for seafood and local dishes",
-      "rating": "4.0/5",
-      "vibe": "tourist-friendly, varied options"
-    },
-    {
-      "name": "Marina Bay Sands SkyPark",
-      "type": "Fine Dining",
-      "description": "romantic dinner with city views",
-      "rating": "4.5/5",
-      "vibe": "romantic, upscale, memorable"
-    },
-    {
-      "name": "Chinatown Food Street",
-      "type": "Street Food",
-      "description": "variety of asian cuisines in one place",
-      "rating": "4.1/5",
-      "vibe": "diverse, cultural, affordable"
-    },
-    {
-      "name": "Clarke Quay Riverside",
-      "type": "Casual Dining",
-      "description": "waterfront dining with nightlife",
-      "rating": "4.3/5",
-      "vibe": "scenic, lively, date-night perfect"
-    }
-  ],
+  "restaurant_suggestions": [],
   "exchange_stats": {
     "start_date": "2024-08-13",
     "end_date": "2025-12-30",
@@ -75,25 +39,21 @@
   },
   "content": {
     "boyfriend": {
-      "image_paths": [
-        "images/boyfriend/example1.jpg",
-        "images/boyfriend/example2.jpg"
-      ],
+      "image_paths": [],
       "video_messages": []
     },
     "girlfriend": {
       "image_paths": [
-        "images/girlfriend/example1.jpg",
-        "images/girlfriend/example2.jpg",
         "images/girlfriend/submitted_1753333269_AgACAgUA.jpg"
       ],
       "video_messages": [
-        "videos/girlfriend/bubble_1753339794_DQACAgUA.mp4"
+        "videos/girlfriend/bubble_1753339794_DQACAgUA.mp4",
+        "videos/girlfriend/bubble_1753346779_DQACAgUA.mp4"
       ]
     }
   },
   "user_roles": {
-    "495290408": "girlfriend"
+    "495290408": "boyfriend"
   },
   "image_paths": [
     "images/pic1.jpg",
@@ -106,5 +66,8 @@
     "images/pic8.jpg",
     "images/pic9.jpg",
     "images/pic10.jpg"
-  ]
+  ],
+  "user_names": {
+    "495290408": "anselm"
+  }
 }
