@@ -1,0 +1,133 @@
+{
+  "flirt_messages": [
+    "you're like bubble tea... i wanna suck you through a straw 😳🧋",
+    "are you a hdb lift? cuz i get excited every time you go up and down 😏🏢",
+    "you're like my cpf... i wanna invest in you for the long term 💰👴",
+    "wanna netflix and chill? i got disney+ also if you prefer wholesome stuff 😉📺",
+    "wanna go jb with me? i promise no funny business... maybe just a little 😏🇲🇾",
+    "you make me harder than getting bto flat on first try leh 🏗️😤",
+    "you're like grab surge pricing... expensive but i still want you 💸🚗",
+    "wanna be my study buddy? we can practice biology together 😏📚"
+  ],
+  "jokes": [
+    "why did the chicken cross the road? to get to the other side... just like how i crossed oceans to be with you 😂❤️",
+    "knock knock! who's there? orange. orange who? orange you glad we're together? 🍊💕",
+    "why don't scientists trust atoms? because they make up everything... just like how you make up my whole world 🔬💫",
+    "why don't eggs tell jokes? they'd crack each other up! just like how you crack me up daily 🥚😂",
+    "what do you call a dinosaur that crashes his car? tyrannosaurus wrecks! don't worry i'm a safe driver 🦕🚗",
+    "why did the math book look so sad? because it had too many problems! good thing you solve all mine 📚💝",
+    "what do you call a bear with no teeth? a gummy bear! sweet just like you 🐻🍯"
+  ],
+  "pep_talks": [
+    "eh babe, you're stronger than you think! remember when you conquered that impossible assignment? you got this! 💪✨",
+    "bad day? doesn't define you lah. you're like a phoenix - always rising from the ashes more beautiful than before 🔥🕊️",
+    "hey gorgeous, storms don't last forever but strong people like you do. weather this and shine brighter! ⛈️🌈",
+    "you know what? you're not just surviving, you're thriving! look how far you've come, i'm so proud 🌟❤️",
+    "feeling down? that's okay. even diamonds need pressure to sparkle. you're my precious gem 💎✨",
+    "tough times are like gyms for the soul - you come out stronger. and babe, you're already a champion 🏆💪",
+    "you're like wifi - even when i can't see you, i know you're there supporting everyone around you 📶💕",
+    "bad days are just life's way of making good days feel even better. your good days are coming! 🌅🎉",
+    "you're not just a survivor, you're a warrior princess. and warriors don't give up! ⚔️👸",
+    "remember: you've overcome 100% of your bad days so far. that's a perfect track record! 📈💫"
+  ],
+  "restaurant_suggestions": [
+    {
+      "name": "Lau Pa Sat",
+      "type": "Hawker Center",
+      "description": "iconic hawker center with satay street",
+      "rating": "4.2/5",
+      "vibe": "local, bustling, authentic"
+    },
+    {
+      "name": "Newton Food Centre",
+      "type": "Hawker Center",
+      "description": "famous for seafood and local dishes",
+      "rating": "4.0/5",
+      "vibe": "tourist-friendly, varied options"
+    },
+    {
+      "name": "Marina Bay Sands SkyPark",
+      "type": "Fine Dining",
+      "description": "romantic dinner with city views",
+      "rating": "4.5/5",
+      "vibe": "romantic, upscale, memorable"
+    },
+    {
+      "name": "Chinatown Food Street",
+      "type": "Street Food",
+      "description": "variety of asian cuisines in one place",
+      "rating": "4.1/5",
+      "vibe": "diverse, cultural, affordable"
+    },
+    {
+      "name": "Clarke Quay Riverside",
+      "type": "Casual Dining",
+      "description": "waterfront dining with nightlife",
+      "rating": "4.3/5",
+      "vibe": "scenic, lively, date-night perfect"
+    }
+  ],
+  "exchange_stats": {
+    "start_date": "2024-08-13",
+    "end_date": "2025-12-30",
+    "relationship_start": "2025-04-19",
+    "next_meeting": "2025-11-20"
+  },
+  "content": {
+    "boyfriend": {
+      "image_paths": [
+        "images/boyfriend/example1.jpg",
+        "images/boyfriend/example2.jpg"
+      ],
+      "telebubbles": [
+        "missing you like crazy 🥺💔",
+        "thinking of you always ❤️✨",
+        "wish i could hug you rn 🤗💕",
+        "you make me so happy 😊🌟",
+        "counting days till we meet 📅💫"
+      ]
+    },
+    "girlfriend": {
+      "image_paths": [
+        "images/girlfriend/example1.jpg",
+        "images/girlfriend/example2.jpg",
+        "images/girlfriend/submitted_1753333269_AgACAgUA.jpg"
+      ],
+      "telebubbles": [
+        "love you to the moon and back 🌙❤️",
+        "you're my sunshine ☀️💛",
+        "dream of you every night 🌃💭",
+        "my heart belongs to you 💖🔐",
+        "forever and always yours 💍✨",
+        "test"
+      ]
+    }
+  },
+  "user_roles": {
+    "495290408": "boyfriend"
+  },
+  "image_paths": [
+    "images/pic1.jpg",
+    "images/pic2.jpg",
+    "images/pic3.jpg",
+    "images/pic4.jpg",
+    "images/pic5.jpg",
+    "images/pic6.jpg",
+    "images/pic7.jpg",
+    "images/pic8.jpg",
+    "images/pic9.jpg",
+    "images/pic10.jpg"
+  ],
+  "telebubbles": [
+    "missing you like crazy 🥺💔",
+    "thinking of you always ❤️✨",
+    "wish i could hug you rn 🤗💕",
+    "you make me so happy 😊🌟",
+    "counting days till we meet 📅💫",
+    "love you to the moon and back 🌙❤️",
+    "you're my sunshine ☀️💛",
+    "dream of you every night 🌃💭",
+    "my heart belongs to you 💖🔐",
+    "forever and always yours 💍✨"
+  ]
+}

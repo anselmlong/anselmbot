@@ -1,2 +1,8 @@
-python-telegram-bot
-python-dotenv
+# Core Dependencies
+python-telegram-bot>=20.0
+python-dotenv>=1.0.0
+
+# Optional Dependencies for Future Extensions
+# APScheduler>=3.10.0  # For real reminder scheduling
+# requests>=2.31.0     # For weather/location APIs
+# Pillow>=10.0.0       # For image processing
