@@ -79,6 +79,13 @@
         "images/boyfriend/example1.jpg",
         "images/boyfriend/example2.jpg"
       ],
+      "telebubbles": [
+        "missing you like crazy 🥺💔",
+        "thinking of you always ❤️✨",
+        "wish i could hug you rn 🤗💕",
+        "you make me so happy 😊🌟",
+        "counting days till we meet 📅💫"
+      ],
       "video_messages": []
     },
     "girlfriend": {
@@ -87,13 +94,19 @@
         "images/girlfriend/example2.jpg",
         "images/girlfriend/submitted_1753333269_AgACAgUA.jpg"
       ],
-      "video_messages": [
-        "videos/girlfriend/bubble_1753339794_DQACAgUA.mp4"
-      ]
+      "telebubbles": [
+        "love you to the moon and back 🌙❤️",
+        "you're my sunshine ☀️💛",
+        "dream of you every night 🌃💭",
+        "my heart belongs to you 💖🔐",
+        "forever and always yours 💍✨",
+        "test"
+      ],
+      "video_messages": []
     }
   },
   "user_roles": {
-    "495290408": "girlfriend"
+    "495290408": "boyfriend"
   },
   "image_paths": [
     "images/pic1.jpg",
@@ -106,5 +119,17 @@
     "images/pic8.jpg",
     "images/pic9.jpg",
     "images/pic10.jpg"
+  ],
+  "telebubbles": [
+    "missing you like crazy 🥺💔",
+    "thinking of you always ❤️✨",
+    "wish i could hug you rn 🤗💕",
+    "you make me so happy 😊🌟",
+    "counting days till we meet 📅💫",
+    "love you to the moon and back 🌙❤️",
+    "you're my sunshine ☀️💛",
+    "dream of you every night 🌃💭",
+    "my heart belongs to you 💖🔐",
+    "forever and always yours 💍✨"
   ]
 }

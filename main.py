@@ -23,7 +23,7 @@ load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
 # Define states for conversation
-MENU, WAITING_REMINDER_TEXT, WAITING_REMINDER_TIME, WAITING_PHOTO_UPLOAD, WAITING_BUBBLE_TEXT = range(5)
+MENU, WAITING_REMINDER_TEXT, WAITING_REMINDER_TIME, WAITING_PHOTO_UPLOAD, WAITING_BUBBLE_TEXT, WAITING_VIDEO_UPLOAD = range(6)
 
 # Set up logging for the bot
 logging.basicConfig(
@@ -249,7 +249,7 @@ async def show_main_menu_from_query(query) -> int:
     if user_role:
         keyboard.extend([
             [InlineKeyboardButton("📤 submit photo for partner", callback_data="submit_photo")],
-            [InlineKeyboardButton("🫧 submit bubble for partner", callback_data="submit_bubble")]
+            [InlineKeyboardButton("🫧 submit bubble for partner", callback_data="submit_bubble")],
         ])
     
     # Role management and exit options
@@ -290,7 +290,6 @@ async def show_main_menu_from_query(query) -> int:
             )
         else:
             # Message is a photo or other media, delete it and send new text message
-            await query.message.delete()
             await query.message.reply_text(
                 back_message,
                 reply_markup=reply_markup,
@@ -489,8 +488,8 @@ async def handle_picture(query) -> int:
 # Bubble handler function
 async def handle_bubble(query) -> int:
     """
-    Handle bubble button click and send a random telebubble message based on user role.
-    Loads telebubble messages from bot_data.json and sends a random cute message.
+    Handle bubble button click and send a random video bubble based on user role.
+    Loads video messages from bot_data.json and sends a random video.
     
     Args:
         query: Telegram callback query object
@@ -511,28 +510,44 @@ async def handle_bubble(query) -> int:
             )
             return MENU
         
-        # Get role-specific telebubbles
-        telebubbles = get_role_based_content('telebubbles', user_role)
+        # Get role-specific video messages only
+        video_messages = get_role_based_content('video_messages', user_role)
         
-        if not telebubbles:
+        if not video_messages:
             keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="🫧 *pop* here's a virtual bubble with love!\n\n(your partner hasn't submitted any bubbles for you yet!)",
+                text="🫧 *pop* no video bubbles available right now!\n\n(your partner hasn't submitted any video bubbles for you yet!)",
                 reply_markup=reply_markup
             )
             return MENU
         
-        random_bubble = random.choice(telebubbles)
+        # Select random video
+        random_video = random.choice(video_messages)
         
         # Create inline keyboard with back to menu option
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(
-            text=f"🫧 {random_bubble} 🫧\n\n💕 (submitted by your partner)",
-            reply_markup=reply_markup
-        )
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        video_path = os.path.join(script_dir, random_video)
+        
+        if os.path.exists(video_path):
+            # Delete the original message first
+            await query.delete_message()
+            
+            # Send the video
+            with open(video_path, 'rb') as video:
+                await query.message.reply_video(
+                    video=video,
+                    caption="🫧 here's a video bubble from your partner! 💕✨",
+                    reply_markup=reply_markup
+                )
+        else:
+            await query.edit_message_text(
+                text="🫧 video bubble not found, but here's love anyway! 💕",
+                reply_markup=reply_markup
+            )
     
     except Exception as e:
         logger.error(f"Error in handle_bubble: {e}")
@@ -981,13 +996,13 @@ async def handle_submit_photo(query) -> int:
 
 async def handle_submit_bubble(query) -> int:
     """
-    Handle bubble submission button click.
+    Handle video bubble submission button click.
     
     Args:
         query: Telegram callback query object
         
     Returns:
-        int: WAITING_BUBBLE_TEXT state
+        int: WAITING_VIDEO_UPLOAD state
     """
     try:
         user_role = get_user_role(query.from_user.id)
@@ -1000,11 +1015,11 @@ async def handle_submit_bubble(query) -> int:
         partner_role = "girlfriend" if user_role == "boyfriend" else "boyfriend"
         
         await query.edit_message_text(
-            text=f"🫧 **submit a telebubble for your {partner_role}!**\n\n"
-                 "type a cute message and i'll add it to their bubble collection! 💕\n\n"
+            text=f"🫧 **submit a video bubble for your {partner_role}!**\n\n"
+                 "send me a video and i'll add it to their bubble collection! 💕\n\n"
                  "_(type /cancel to go back to menu)_"
         )
-        return WAITING_BUBBLE_TEXT
+        return WAITING_VIDEO_UPLOAD
     except Exception as e:
         logger.error(f"Error in handle_submit_bubble: {e}")
         return await show_main_menu_from_query(query)
@@ -1073,9 +1088,9 @@ async def process_photo_upload(update: Update, context: CallbackContext) -> int:
     
     return MENU
 
-async def process_bubble_text(update: Update, context: CallbackContext) -> int:
+async def process_video_upload(update: Update, context: CallbackContext) -> int:
     """
-    Process bubble text submission for partner.
+    Process uploaded video for partner's bubble collection.
     
     Args:
         update: Telegram update object
@@ -1090,34 +1105,56 @@ async def process_bubble_text(update: Update, context: CallbackContext) -> int:
             await update.message.reply_text("⚠️ error: role not found. please set your role first!")
             return MENU
         
-        bubble_text = update.message.text
-        partner_role = "girlfriend" if user_role == "boyfriend" else "boyfriend"
+        # Get the video
+        video = update.message.video
+        if not video:
+            # Try video note (circular videos)
+            video = update.message.video_note
         
-        # Save bubble text for partner
-        success = save_content_for_partner('telebubbles', bubble_text, user_role)
+        if not video:
+            await update.message.reply_text("⚠️ please send a video file!")
+            return MENU
+        
+        file = await context.bot.get_file(video.file_id)
+        
+        # Create directories if they don't exist
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        partner_role = "girlfriend" if user_role == "boyfriend" else "boyfriend"
+        videos_dir = os.path.join(script_dir, "videos", partner_role)
+        os.makedirs(videos_dir, exist_ok=True)
+        
+        # Save the video
+        import time
+        filename = f"bubble_{int(time.time())}_{video.file_id[:8]}.mp4"
+        file_path = os.path.join(videos_dir, filename)
+        await file.download_to_drive(file_path)
+        
+        # Add to partner's content
+        relative_path = f"videos/{partner_role}/{filename}"
+        success = save_content_for_partner('video_messages', relative_path, user_role)
         
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if success:
             await update.message.reply_text(
-                f"✅ **bubble submitted successfully!** 🫧\n\n"
-                f"your {partner_role} will now see this message: \"{bubble_text}\" when they want a bubble! 💕",
+                f"✅ **video bubble submitted successfully!** 🫧\n\n"
+                f"your {partner_role} will now see this video when they want a bubble! 💕",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
         else:
             await update.message.reply_text(
-                "❌ failed to save bubble. please try again!",
+                "❌ failed to save video bubble. please try again!",
                 reply_markup=reply_markup
             )
         
     except Exception as e:
-        logger.error(f"Error processing bubble text: {e}")
+        logger.error(f"Error processing video upload: {e}")
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "oops! something went wrong while saving your bubble 🫧💔",
+            "oops! something went wrong while uploading your video bubble 🫧💔",
             reply_markup=reply_markup
         )
     
@@ -1156,7 +1193,7 @@ async def start(update: Update, context: CallbackContext) -> int:
     if user_role:
         keyboard.extend([
             [InlineKeyboardButton("📤 submit photo for partner", callback_data="submit_photo")],
-            [InlineKeyboardButton("🫧 submit bubble for partner", callback_data="submit_bubble")]
+            [InlineKeyboardButton("🫧 submit bubble for partner", callback_data="submit_bubble")],
         ])
     
     # Role management and exit options
@@ -1175,7 +1212,7 @@ async def start(update: Update, context: CallbackContext) -> int:
     
     if user_role:
         welcome_message = (
-            f"💕 **welcome back, {user_role}!** 💕\n"
+            f"💕 **hi chat, welcome back, {user_role}!** 💕\n"
             f"role: **{user_role}** �\n\n"
             "i'm here to make your day brighter with:\n"
             "• jokes to cheer you up 😂\n"
@@ -1263,7 +1300,7 @@ async def button(update: Update, context: CallbackContext) -> int:
     elif query.data == "back_to_menu":
         return await show_main_menu_from_query(query)
     elif query.data == "exit":
-        await query.edit_message_text(text="goodbye for now! thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!")
+        await query.edit_message_text(text="goodbye love! thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!")
         return ConversationHandler.END
     else:
         await query.edit_message_text(text="unknown option selected. let's try again! 🔄")
@@ -1283,7 +1320,7 @@ async def stop(update: Update, context: CallbackContext) -> int:
     Returns:
         int: ConversationHandler.END to end conversation
     """
-    await update.message.reply_text("goodbye for now! thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!")
+    await update.message.reply_text("goodbye love! thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!")
     return ConversationHandler.END
 
 # Cancel handler
@@ -1370,7 +1407,7 @@ def main():
             WAITING_REMINDER_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_reminder_text)],
             WAITING_REMINDER_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_reminder_time)],
             WAITING_PHOTO_UPLOAD: [MessageHandler(filters.PHOTO, process_photo_upload)],
-            WAITING_BUBBLE_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_bubble_text)],
+            WAITING_VIDEO_UPLOAD: [MessageHandler(filters.VIDEO | filters.VIDEO_NOTE, process_video_upload)],
         },
         fallbacks=[
             CommandHandler("cancel", cancel),
