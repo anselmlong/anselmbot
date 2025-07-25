@@ -3,6 +3,8 @@ import os
 import json
 import random
 import datetime
+import asyncio
+import threading
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
@@ -23,7 +25,7 @@ load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
 # Define states for conversation
-MENU, WAITING_REMINDER_TEXT, WAITING_REMINDER_TIME, WAITING_PHOTO_UPLOAD, WAITING_BUBBLE_TEXT, WAITING_VIDEO_UPLOAD, WAITING_NAME_INPUT, DEFAULT = range(8)
+MENU, WAITING_REMINDER_TEXT, WAITING_REMINDER_TIME, WAITING_PHOTO_UPLOAD, WAITING_BUBBLE_TEXT, WAITING_VIDEO_UPLOAD, WAITING_NAME_INPUT, WAITING_DAILY_REMINDER_TEXT, WAITING_DAILY_REMINDER_TIME, DEFAULT = range(10)
 
 # Set up logging for the bot
 logging.basicConfig(
@@ -194,6 +196,116 @@ def set_user_role(user_id: int, role: str) -> bool:
         logger.error(f"Error setting user role: {e}")
         return False
 
+def get_user_daily_reminders(user_id: int) -> list:
+    """
+    Get daily reminders for a specific user.
+    
+    Args:
+        user_id (int): Telegram user ID
+        
+    Returns:
+        list: List of daily reminders for the user
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        daily_reminders = data.get('daily_reminders', {})
+        return daily_reminders.get(str(user_id), [])
+    except Exception as e:
+        logger.error(f"Error getting daily reminders: {e}")
+        return []
+
+def save_daily_reminder(user_id: int, reminder_text: str, reminder_time: str) -> bool:
+    """
+    Save a daily reminder for a user.
+    
+    Args:
+        user_id (int): Telegram user ID
+        reminder_text (str): The reminder message
+        reminder_time (str): Time in HH:MM format
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        if 'daily_reminders' not in data:
+            data['daily_reminders'] = {}
+        
+        if str(user_id) not in data['daily_reminders']:
+            data['daily_reminders'][str(user_id)] = []
+        
+        # Add the new reminder
+        reminder = {
+            'text': reminder_text,
+            'time': reminder_time,
+            'active': True,
+            'created_at': datetime.datetime.now().isoformat()
+        }
+        
+        data['daily_reminders'][str(user_id)].append(reminder)
+        return save_json_data('bot_data.json', data)
+        
+    except Exception as e:
+        logger.error(f"Error saving daily reminder: {e}")
+        return False
+
+def remove_daily_reminder(user_id: int, reminder_index: int) -> bool:
+    """
+    Remove a daily reminder for a user.
+    
+    Args:
+        user_id (int): Telegram user ID
+        reminder_index (int): Index of the reminder to remove
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        if 'daily_reminders' not in data or str(user_id) not in data['daily_reminders']:
+            return False
+        
+        reminders = data['daily_reminders'][str(user_id)]
+        if 0 <= reminder_index < len(reminders):
+            reminders.pop(reminder_index)
+            return save_json_data('bot_data.json', data)
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error removing daily reminder: {e}")
+        return False
+
+def toggle_daily_reminder(user_id: int, reminder_index: int) -> bool:
+    """
+    Toggle a daily reminder active/inactive status.
+    
+    Args:
+        user_id (int): Telegram user ID
+        reminder_index (int): Index of the reminder to toggle
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        if 'daily_reminders' not in data or str(user_id) not in data['daily_reminders']:
+            return False
+        
+        reminders = data['daily_reminders'][str(user_id)]
+        if 0 <= reminder_index < len(reminders):
+            reminders[reminder_index]['active'] = not reminders[reminder_index].get('active', True)
+            return save_json_data('bot_data.json', data)
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error toggling daily reminder: {e}")
+        return False
+
 def get_role_based_content(content_type: str, user_role: str) -> list:
     """
     Get content based on user role.
@@ -219,6 +331,83 @@ def get_role_based_content(content_type: str, user_role: str) -> list:
     except Exception as e:
         logger.error(f"Error getting role-based content: {e}")
         return []
+
+class DailyReminderScheduler:
+    """
+    Class to handle daily reminder scheduling and sending.
+    """
+    
+    def __init__(self, application):
+        self.application = application
+        self.running = False
+        self.scheduler_thread = None
+    
+    def start(self):
+        """Start the daily reminder scheduler."""
+        if not self.running:
+            self.running = True
+            self.scheduler_thread = threading.Thread(target=self._run_scheduler, daemon=True)
+            self.scheduler_thread.start()
+            logger.info("Daily reminder scheduler started! 📅")
+    
+    def stop(self):
+        """Stop the daily reminder scheduler."""
+        self.running = False
+        if self.scheduler_thread:
+            self.scheduler_thread.join()
+        logger.info("Daily reminder scheduler stopped! 📅")
+    
+    def _run_scheduler(self):
+        """Run the scheduler loop."""
+        while self.running:
+            try:
+                self._check_and_send_reminders()
+                # Check every minute
+                threading.Event().wait(60)
+            except Exception as e:
+                logger.error(f"Error in reminder scheduler: {e}")
+                threading.Event().wait(60)
+    
+    def _check_and_send_reminders(self):
+        """Check if any reminders need to be sent now."""
+        try:
+            current_time = datetime.datetime.now().strftime("%H:%M")
+            data = load_json_data('bot_data.json')
+            daily_reminders = data.get('daily_reminders', {})
+            
+            for user_id, reminders in daily_reminders.items():
+                for reminder in reminders:
+                    if (reminder.get('active', True) and 
+                        reminder.get('time') == current_time):
+                        
+                        # Send the reminder
+                        asyncio.create_task(
+                            self._send_reminder(int(user_id), reminder['text'])
+                        )
+                        
+        except Exception as e:
+            logger.error(f"Error checking reminders: {e}")
+    
+    async def _send_reminder(self, user_id: int, reminder_text: str):
+        """Send a reminder to a user."""
+        try:
+            user_name = get_user_name(user_id)
+            name_part = f" {user_name}" if user_name else ""
+            
+            message = f"⏰ **daily reminder!** ⏰\n\n💕 hey{name_part}! 💕\n\n📝 {reminder_text}\n\n✨ have a great day! ✨"
+            
+            await self.application.bot.send_message(
+                chat_id=user_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            logger.info(f"Daily reminder sent to user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error sending reminder to user {user_id}: {e}")
+
+# Global scheduler instance
+reminder_scheduler = None
 
 def save_content_for_partner(content_type: str, content_data: any, submitter_role: str) -> bool:
     """
@@ -274,12 +463,13 @@ async def show_main_menu_from_query(query) -> int:
     
     # Base menu options
     keyboard = [
-        [InlineKeyboardButton(" gimme some rizz", callback_data="flirt")],
+        [InlineKeyboardButton("💕 gimme some rizz", callback_data="flirt")],
         [InlineKeyboardButton("📸 i wanna see you", callback_data="picture")],
         [InlineKeyboardButton("🫧 i want a bubble", callback_data="bubble")],
         [InlineKeyboardButton("💪 i need motivation", callback_data="motivation")],
-        [InlineKeyboardButton(" show me our stats", callback_data="stats")],
+        [InlineKeyboardButton("📊 show me our stats", callback_data="stats")],
         [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")],
+        [InlineKeyboardButton("📅 daily reminders", callback_data="daily_reminders")],
         [InlineKeyboardButton("🍽️ where should we eat?", callback_data="restaurant")]
     ]
     
@@ -807,6 +997,253 @@ async def process_reminder_time(update: Update, context: CallbackContext) -> int
         )
         return MENU
 
+# Daily reminder handlers
+async def handle_daily_reminders(query) -> int:
+    """
+    Handle daily reminders button click and show reminder management menu.
+    
+    Args:
+        query: Telegram callback query object
+        
+    Returns:
+        int: MENU state
+    """
+    try:
+        user_id = query.from_user.id
+        reminders = get_user_daily_reminders(user_id)
+        
+        keyboard = [
+            [InlineKeyboardButton("➕ add new daily reminder", callback_data="add_daily_reminder")]
+        ]
+        
+        message = "📅 **daily reminders management** 📅\n\n"
+        
+        if reminders:
+            message += "**your current daily reminders:**\n\n"
+            for i, reminder in enumerate(reminders):
+                status = "✅" if reminder.get('active', True) else "❌"
+                message += f"{i+1}. {status} **{reminder['time']}** - {reminder['text']}\n"
+            
+            message += "\n**manage your reminders:**\n"
+            
+            # Add management buttons
+            for i, reminder in enumerate(reminders):
+                status_text = "disable" if reminder.get('active', True) else "enable"
+                keyboard.append([
+                    InlineKeyboardButton(f"🔄 {status_text} #{i+1}", callback_data=f"toggle_reminder_{i}"),
+                    InlineKeyboardButton(f"🗑️ delete #{i+1}", callback_data=f"delete_reminder_{i}")
+                ])
+            
+        else:
+            message += "you have no daily reminders set up yet! 😊\n\n"
+            message += "daily reminders will send you a message every day at the time you choose! ⏰\n\n"
+        
+        keyboard.append([InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            text=message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in handle_daily_reminders: {e}")
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text="oops! something went wrong with daily reminders 😅",
+            reply_markup=reply_markup
+        )
+    
+    return MENU
+
+async def handle_add_daily_reminder(query) -> int:
+    """
+    Handle adding a new daily reminder.
+    
+    Args:
+        query: Telegram callback query object
+        
+    Returns:
+        int: WAITING_DAILY_REMINDER_TEXT state
+    """
+    try:
+        await query.edit_message_text(
+            text="📅 **create a new daily reminder!** 📅\n\n"
+                 "💬 what would you like to be reminded about daily?\n"
+                 "just type your reminder message! ✨\n\n"
+                 "examples:\n"
+                 "• drink water! 💧\n"
+                 "• call your partner 💕\n"
+                 "• take your vitamins 💊\n"
+                 "• you're amazing! 🌟\n\n"
+                 "_(type /cancel to go back to menu)_"
+        )
+        return WAITING_DAILY_REMINDER_TEXT
+    except Exception as e:
+        logger.error(f"Error in handle_add_daily_reminder: {e}")
+        return await show_main_menu_from_query(query)
+
+async def process_daily_reminder_text(update: Update, context: CallbackContext) -> int:
+    """
+    Process the daily reminder text input from user.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+        
+    Returns:
+        int: WAITING_DAILY_REMINDER_TIME state
+    """
+    try:
+        reminder_text = update.message.text.strip()
+        context.user_data['daily_reminder_text'] = reminder_text
+        
+        await update.message.reply_text(
+            f"📝 **daily reminder text:** \"{reminder_text}\" ✨\n\n"
+            "⏰ **what time should i send this reminder daily?**\n\n"
+            "please send the time in **HH:MM** format (24-hour):\n"
+            "• **08:00** for 8:00 AM 🌅\n"
+            "• **12:00** for 12:00 PM (noon) ☀️\n"
+            "• **18:30** for 6:30 PM 🌆\n"
+            "• **22:00** for 10:00 PM 🌙\n\n"
+            "_(type /cancel to go back to menu)_",
+            parse_mode='Markdown'
+        )
+        return WAITING_DAILY_REMINDER_TIME
+    except Exception as e:
+        logger.error(f"Error processing daily reminder text: {e}")
+        await update.message.reply_text("oops! something went wrong. let's start over with /start 😅")
+        return MENU
+
+async def process_daily_reminder_time(update: Update, context: CallbackContext) -> int:
+    """
+    Process the daily reminder time input and save the reminder.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+        
+    Returns:
+        int: MENU state
+    """
+    try:
+        time_input = update.message.text.strip()
+        reminder_text = context.user_data.get('daily_reminder_text', 'daily reminder')
+        user_id = update.effective_user.id
+        
+        # Validate time format
+        try:
+            datetime.datetime.strptime(time_input, "%H:%M")
+        except ValueError:
+            await update.message.reply_text(
+                "❌ **invalid time format!** ⏰\n\n"
+                "please use **HH:MM** format (24-hour):\n"
+                "• **09:00** ✅\n"
+                "• **14:30** ✅\n"
+                "• **9:00** ❌ (use 09:00)\n"
+                "• **2:30 PM** ❌ (use 14:30)\n\n"
+                "try again! 😊"
+            )
+            return WAITING_DAILY_REMINDER_TIME
+        
+        # Save the daily reminder
+        success = save_daily_reminder(user_id, reminder_text, time_input)
+        
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if success:
+            # Convert to 12-hour format for display
+            time_obj = datetime.datetime.strptime(time_input, "%H:%M")
+            display_time = time_obj.strftime("%I:%M %p").lstrip('0')
+            
+            await update.message.reply_text(
+                f"✅ **daily reminder created successfully!** 📅\n\n"
+                f"⏰ **time:** {display_time} ({time_input})\n"
+                f"💬 **message:** \"{reminder_text}\"\n\n"
+                f"📱 i'll send you this reminder every day at {display_time}! ✨\n\n"
+                f"💡 you can manage your daily reminders from the main menu!",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        else:
+            await update.message.reply_text(
+                "❌ **failed to create daily reminder** 😅\n\n"
+                "something went wrong while saving. please try again! 💕",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        
+        return MENU
+        
+    except Exception as e:
+        logger.error(f"Error processing daily reminder time: {e}")
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "oops! something went wrong while setting up your daily reminder 😅",
+            reply_markup=reply_markup
+        )
+        return MENU
+
+async def handle_toggle_reminder(query, reminder_index: int) -> int:
+    """
+    Handle toggling a daily reminder on/off.
+    
+    Args:
+        query: Telegram callback query object
+        reminder_index: Index of the reminder to toggle
+        
+    Returns:
+        int: MENU state
+    """
+    try:
+        user_id = query.from_user.id
+        success = toggle_daily_reminder(user_id, reminder_index)
+        
+        if success:
+            await query.answer("✅ reminder status updated!")
+            # Refresh the daily reminders menu
+            return await handle_daily_reminders(query)
+        else:
+            await query.answer("❌ failed to update reminder status")
+            return await show_main_menu_from_query(query)
+            
+    except Exception as e:
+        logger.error(f"Error toggling reminder: {e}")
+        await query.answer("❌ error occurred")
+        return await show_main_menu_from_query(query)
+
+async def handle_delete_reminder(query, reminder_index: int) -> int:
+    """
+    Handle deleting a daily reminder.
+    
+    Args:
+        query: Telegram callback query object
+        reminder_index: Index of the reminder to delete
+        
+    Returns:
+        int: MENU state
+    """
+    try:
+        user_id = query.from_user.id
+        success = remove_daily_reminder(user_id, reminder_index)
+        
+        if success:
+            await query.answer("🗑️ reminder deleted!")
+            # Refresh the daily reminders menu
+            return await handle_daily_reminders(query)
+        else:
+            await query.answer("❌ failed to delete reminder")
+            return await show_main_menu_from_query(query)
+            
+    except Exception as e:
+        logger.error(f"Error deleting reminder: {e}")
+        await query.answer("❌ error occurred")
+        return await show_main_menu_from_query(query)
+
 # Restaurant suggestion handler
 async def handle_restaurant(query) -> int:
     """
@@ -1244,6 +1681,7 @@ async def start(update: Update, context: CallbackContext) -> int:
         [InlineKeyboardButton("💪 i need motivation", callback_data="motivation")],
         [InlineKeyboardButton("📊 show me our stats", callback_data="stats")],
         [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")],
+        [InlineKeyboardButton("📅 daily reminders", callback_data="daily_reminders")],
         [InlineKeyboardButton("🍽️ where should we eat?", callback_data="restaurant")]
     ]
     
@@ -1279,6 +1717,7 @@ async def start(update: Update, context: CallbackContext) -> int:
             "• bubbles from your partner 🫧\n"
             "• relationship stats 📊\n"
             "• reminders ⏰\n"
+            "• daily reminders 📅\n"
             "• restaurant suggestions 🍽️\n\n"
             "**plus, you can now submit content for your partner!** ✨\n\n"
             "**choose what you need right now! ✨**\n"
@@ -1337,6 +1776,16 @@ async def button(update: Update, context: CallbackContext) -> int:
         return await handle_stats(query)
     elif query.data == "reminder":
         return await handle_reminder(query)
+    elif query.data == "daily_reminders":
+        return await handle_daily_reminders(query)
+    elif query.data == "add_daily_reminder":
+        return await handle_add_daily_reminder(query)
+    elif query.data.startswith("toggle_reminder_"):
+        reminder_index = int(query.data.split("_")[-1])
+        return await handle_toggle_reminder(query, reminder_index)
+    elif query.data.startswith("delete_reminder_"):
+        reminder_index = int(query.data.split("_")[-1])
+        return await handle_delete_reminder(query, reminder_index)
     elif query.data == "restaurant":
         return await handle_restaurant(query)
     elif query.data == "set_role" or query.data == "change_role":
@@ -1449,6 +1898,8 @@ def main():
     Main function to initialize and start the Telegram bot.
     Sets up conversation handlers and starts polling for updates.
     """
+    global reminder_scheduler
+    
     application = (
         ApplicationBuilder()
         .token(TOKEN)
@@ -1457,6 +1908,10 @@ def main():
         .concurrent_updates(True)
         .build()
     )
+
+    # Initialize and start the daily reminder scheduler
+    reminder_scheduler = DailyReminderScheduler(application)
+    reminder_scheduler.start()
 
     # ConversationHandler to handle the state machine
     conv_handler = ConversationHandler(
@@ -1468,6 +1923,8 @@ def main():
             ],
             WAITING_REMINDER_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_reminder_text)],
             WAITING_REMINDER_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_reminder_time)],
+            WAITING_DAILY_REMINDER_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_daily_reminder_text)],
+            WAITING_DAILY_REMINDER_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_daily_reminder_time)],
             WAITING_PHOTO_UPLOAD: [MessageHandler(filters.PHOTO, process_photo_upload)],
             WAITING_VIDEO_UPLOAD: [MessageHandler(filters.VIDEO | filters.VIDEO_NOTE, process_video_upload)],
             WAITING_NAME_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_name_input)],
@@ -1488,7 +1945,17 @@ def main():
     logger.info("Users can type /stop, /exit, /cancel, or click 'exit bot' to quit")
     logger.info("Role-based system enabled - users can be 'boyfriend' or 'girlfriend'")
     logger.info("Content submission enabled - partners can submit photos and bubbles for each other")
-    application.run_polling()
+    logger.info("Daily reminder scheduler is running! 📅")
+    
+    try:
+        application.run_polling()
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user")
+    finally:
+        # Clean up the scheduler
+        if reminder_scheduler:
+            reminder_scheduler.stop()
+        logger.info("Daily reminder scheduler stopped! 📅")
 
 if __name__ == "__main__":
     main()

@@ -48,12 +48,14 @@
       ],
       "video_messages": [
         "videos/girlfriend/bubble_1753339794_DQACAgUA.mp4",
-        "videos/girlfriend/bubble_1753346779_DQACAgUA.mp4"
+        "videos/girlfriend/bubble_1753346779_DQACAgUA.mp4",
+        "videos/girlfriend/bubble_1753417665_DQACAgUA.mp4"
       ]
     }
   },
   "user_roles": {
-    "495290408": "boyfriend"
+    "495290408": "boyfriend",
+    "1648279852": "boyfriend"
   },
   "image_paths": [
     "images/pic1.jpg",
@@ -68,6 +70,7 @@
     "images/pic10.jpg"
   ],
   "user_names": {
-    "495290408": "anselm"
+    "495290408": "anselm",
+    "1648279852": "anton"
   }
 }
