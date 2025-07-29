@@ -469,8 +469,7 @@ async def show_main_menu_from_query(query) -> int:
         [InlineKeyboardButton("💪 i need motivation", callback_data="motivation")],
         [InlineKeyboardButton("📊 show me our stats", callback_data="stats")],
         [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")],
-        [InlineKeyboardButton("📅 daily reminders", callback_data="daily_reminders")],
-        [InlineKeyboardButton("🍽️ where should we eat?", callback_data="restaurant")]
+        [InlineKeyboardButton("📅 daily reminders", callback_data="daily_reminders")]
     ]
     
     # Add role-specific submission options
@@ -970,19 +969,22 @@ async def process_reminder_time(update: Update, context: CallbackContext) -> int
             await update.message.reply_text(
                 f"✅ reminder set for tomorrow: \"{reminder_text}\" 📅\n"
                 "📝 (note: this is a demo - real scheduling would be implemented with proper task scheduler) 💻",
-                reply_markup=reply_markup
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
             )
         elif ":" in time_input:
             await update.message.reply_text(
                 f"✅ reminder set for {time_input}: \"{reminder_text}\" ⏰\n"
                 "📝 (note: this is a demo - real scheduling would be implemented with proper task scheduler) 💻",
-                reply_markup=reply_markup
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
             )
         else:
             await update.message.reply_text(
                 f"⏰ reminder noted: \"{reminder_text}\" 📝\n"
-                "� i'll try to remember that for you! (this is a demo feature) ✨",
-                reply_markup=reply_markup
+                "⏰ i'll try to remember that for you! (this is a demo feature) ✨",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
             )
         
         return MENU
@@ -1078,7 +1080,8 @@ async def handle_add_daily_reminder(query) -> int:
                  "• call your partner 💕\n"
                  "• take your vitamins 💊\n"
                  "• you're amazing! 🌟\n\n"
-                 "_(type /cancel to go back to menu)_"
+                 "_(type /cancel to go back to menu)_",
+            parse_mode='Markdown'
         )
         return WAITING_DAILY_REMINDER_TEXT
     except Exception as e:
@@ -1243,61 +1246,6 @@ async def handle_delete_reminder(query, reminder_index: int) -> int:
         logger.error(f"Error deleting reminder: {e}")
         await query.answer("❌ error occurred")
         return await show_main_menu_from_query(query)
-
-# Restaurant suggestion handler
-async def handle_restaurant(query) -> int:
-    """
-    Handle restaurant suggestion button and provide dining recommendations.
-    Loads restaurant data from bot_data.json and suggests a random place to eat.
-    
-    Args:
-        query: Telegram callback query object
-        
-    Returns:
-        int: MENU to return to main menu after showing restaurant suggestion
-    """
-    try:
-        data = load_json_data('bot_data.json')
-        
-        if 'restaurant_suggestions' not in data or not data['restaurant_suggestions']:
-            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.edit_message_text(
-                text="🍜 how about we cook together instead? i'll bring the love, you bring the appetite! 👨‍🍳💕",
-                reply_markup=reply_markup
-            )
-            return MENU
-        
-        restaurants = data['restaurant_suggestions']
-        random_restaurant = random.choice(restaurants)
-        
-        restaurant_message = f"🍽️ **{random_restaurant['name']}** 🍽️\n\n"
-        restaurant_message += f"📍 type: {random_restaurant['type']} 🏷️\n"
-        restaurant_message += f"📝 {random_restaurant['description']} ✨\n"
-        restaurant_message += f"⭐ rating: {random_restaurant['rating']} 🌟\n"
-        restaurant_message += f"✨ vibe: {random_restaurant['vibe']} 💫\n\n"
-        restaurant_message += "bon appétit, babe! 😘🍴"
-        
-        # Create inline keyboard with back to menu option
-        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            text=restaurant_message, 
-            parse_mode='Markdown',
-            reply_markup=reply_markup
-        )
-    
-    except Exception as e:
-        logger.error(f"Error in handle_restaurant: {e}")
-        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="🍜 error finding restaurants, but anywhere with you would be perfect! 💕",
-            reply_markup=reply_markup
-        )
-    
-    return MENU
 
 # Role management handlers
 async def handle_set_role(query) -> int:
@@ -1681,8 +1629,7 @@ async def start(update: Update, context: CallbackContext) -> int:
         [InlineKeyboardButton("💪 i need motivation", callback_data="motivation")],
         [InlineKeyboardButton("📊 show me our stats", callback_data="stats")],
         [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")],
-        [InlineKeyboardButton("📅 daily reminders", callback_data="daily_reminders")],
-        [InlineKeyboardButton("🍽️ where should we eat?", callback_data="restaurant")]
+        [InlineKeyboardButton("📅 daily reminders", callback_data="daily_reminders")]
     ]
     
     # Add role-specific submission options
@@ -1717,8 +1664,7 @@ async def start(update: Update, context: CallbackContext) -> int:
             "• bubbles from your partner 🫧\n"
             "• relationship stats 📊\n"
             "• reminders ⏰\n"
-            "• daily reminders 📅\n"
-            "• restaurant suggestions 🍽️\n\n"
+            "• daily reminders 📅\n\n"
             "**plus, you can now submit content for your partner!** ✨\n\n"
             "**choose what you need right now! ✨**\n"
             "_(i'll keep running until you type /stop or click exit)_ 💕"
@@ -1736,8 +1682,7 @@ async def start(update: Update, context: CallbackContext) -> int:
             "• flirty messages 💕\n" 
             "• motivational pep talks 💪\n"
             "• relationship stats 📊\n"
-            "• reminders ⏰\n"
-            "• restaurant suggestions 🍽️\n\n"
+            "• reminders ⏰\n\n"
             "_(i'll keep running until you type /stop or click exit)_ ✨"
         )
     
@@ -1786,8 +1731,6 @@ async def button(update: Update, context: CallbackContext) -> int:
     elif query.data.startswith("delete_reminder_"):
         reminder_index = int(query.data.split("_")[-1])
         return await handle_delete_reminder(query, reminder_index)
-    elif query.data == "restaurant":
-        return await handle_restaurant(query)
     elif query.data == "set_role" or query.data == "change_role":
         return await handle_set_role(query)
     elif query.data == "role_boyfriend":
@@ -1855,8 +1798,7 @@ async def cancel(update: Update, context: CallbackContext) -> int:
         [InlineKeyboardButton("🫧 i want a bubble", callback_data="bubble")],
         [InlineKeyboardButton("💪 i need motivation", callback_data="motivation")],
         [InlineKeyboardButton("📊 show me our stats", callback_data="stats")],
-        [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")],
-        [InlineKeyboardButton("🍽️ where should we eat?", callback_data="restaurant")]
+        [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")]
     ]
     
     # Add role-specific submission options
