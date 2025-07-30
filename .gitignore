@@ -1,6 +1,11 @@
 # Environment variables
 .env
 
+# Data
+bot_data.json
+images/
+videos/
+
 # Python
 __pycache__/
 *.py[cod]
