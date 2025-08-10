@@ -2464,10 +2464,11 @@ async def version(update: Update, context: CallbackContext) -> None:
         update: Telegram update object
         context: Callback context
     """
+    VERSION_NUMBER = "1.0.1"
     try:
         version_info = (
             "🤖 **anselmbot version info** 🤖\n\n"
-            "📍 **version:** 1.0.0\n"
+            f"📍 **version:** {VERSION_NUMBER}\n"
             "👨‍💻 **author:** Anselm Long\n"
             "💕 **purpose:** making long-distance love a little easier i hope ✨\n\n"
         )
