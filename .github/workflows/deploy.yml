@@ -27,6 +27,6 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script_stop: true
           script: |
-            cd /root/your-bot-folder
+            cd /root/anselmbot
             git pull origin main
-            pm2 restart telegrambot || screen -dmS bot python3 bot.py
+            pm2 restart telegrambot || screen -dmS main python3 main.py
