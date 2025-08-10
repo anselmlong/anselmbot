@@ -5,6 +5,7 @@ import random
 import datetime
 import asyncio
 import threading
+import pytz
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
@@ -32,6 +33,87 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Timezone configuration
+TIMEZONES = {
+    'boyfriend': 'America/New_York',  # New Orleans is in Central Time, but using Eastern for now
+    'girlfriend': 'Europe/Prague'
+}
+
+# Actually, let's use the correct timezone for New Orleans
+TIMEZONES = {
+    'boyfriend': 'America/Chicago',  # New Orleans is in Central Time
+    'girlfriend': 'Europe/Prague'
+}
+
+def get_current_times():
+    """
+    Get current times in both Prague and New Orleans.
+    
+    Returns:
+        dict: Dictionary with formatted time strings for both locations
+    """
+    try:
+        prague_tz = pytz.timezone(TIMEZONES['girlfriend'])
+        new_orleans_tz = pytz.timezone(TIMEZONES['boyfriend'])
+        
+        utc_now = datetime.datetime.now(pytz.UTC)
+        
+        prague_time = utc_now.astimezone(prague_tz)
+        new_orleans_time = utc_now.astimezone(new_orleans_tz)
+        
+        return {
+            'prague': {
+                'time': prague_time.strftime("%I:%M %p"),
+                'date': prague_time.strftime("%B %d"),
+                'full': prague_time.strftime("%I:%M %p, %B %d")
+            },
+            'new_orleans': {
+                'time': new_orleans_time.strftime("%I:%M %p"), 
+                'date': new_orleans_time.strftime("%B %d"),
+                'full': new_orleans_time.strftime("%I:%M %p, %B %d")
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting current times: {e}")
+        return {
+            'prague': {'time': 'N/A', 'date': 'N/A', 'full': 'N/A'},
+            'new_orleans': {'time': 'N/A', 'date': 'N/A', 'full': 'N/A'}
+        }
+
+def get_user_timezone(user_role: str) -> str:
+    """
+    Get timezone for user based on their role.
+    
+    Args:
+        user_role (str): User role ('boyfriend' or 'girlfriend')
+        
+    Returns:
+        str: Timezone string
+    """
+    return TIMEZONES.get(user_role, 'UTC')
+
+def format_time_with_both_zones(base_time: str, context: str = "") -> str:
+    """
+    Format time display showing both Prague and New Orleans times.
+    
+    Args:
+        base_time (str): Base time string
+        context (str): Context for the time display
+        
+    Returns:
+        str: Formatted string with both timezone times
+    """
+    times = get_current_times()
+    
+    time_display = f"🕐 **current times** 🕐\n"
+    time_display += f"🇨🇿 **prague:** {times['prague']['full']}\n"  
+    time_display += f"🇺🇸 **new orleans:** {times['new_orleans']['full']}"
+    
+    if context:
+        time_display = f"{context}\n\n{time_display}"
+    
+    return time_display
 
 # Helper function to load JSON data
 def load_json_data(filename: str) -> dict:
@@ -680,7 +762,11 @@ class DailyReminderScheduler:
             user_name = get_user_name(user_id)
             name_part = f" {user_name}" if user_name else ""
             
-            message = f"💌 **reminder from {sender_name}!** 💌\n\n💕 hey{name_part}! 💕\n\n📝 {sender_name} wanted to remind you: {reminder_text}\n\n✨ they're thinking of you! ✨"
+            # Get current times for both locations
+            times = get_current_times()
+            time_info = f"\n\n🕐 **current times** 🕐\n🇨🇿 **prague:** {times['prague']['full']}\n🇺🇸 **new orleans:** {times['new_orleans']['full']}"
+            
+            message = f"💌 **reminder from {sender_name}!** 💌\n\n💕 hey{name_part}! 💕\n\n📝 {sender_name} wanted to remind you: {reminder_text}\n\n✨ they're thinking of you! ✨{time_info}"
             
             await self.application.bot.send_message(
                 chat_id=user_id,
@@ -780,17 +866,23 @@ async def show_main_menu_from_query(query) -> int:
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    # Get current times for both locations
+    times = get_current_times()
+    time_info = f"\n\n🕐 **current times** 🕐\n🇨🇿 **prague:** {times['prague']['full']}\n🇺🇸 **new orleans:** {times['new_orleans']['full']}"
+    
     if user_role:
         back_message = (
             f"💫 **back to the main menu!** 💫\n"
             f"role: **{user_role}** 👤\n\n"
             "what would you like to do next? ✨"
+            f"{time_info}"
         )
     else:
         back_message = (
             "💫 **welcome to the main menu!** 💫\n"
             "⚠️ please set your role first to access all features! 💕\n\n"
             "what would you like to do? ✨"
+            f"{time_info}"
         )
     
     try:
@@ -849,8 +941,9 @@ async def handle_flirt(query) -> int:
             keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(
-                text="sorry, i'm feeling a bit tongue-tied right now! 😅",
-                reply_markup=reply_markup
+                text="**sorry, i'm feeling a bit tongue-tied right now!** 😅",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
             )
             return MENU
         
@@ -863,7 +956,8 @@ async def handle_flirt(query) -> int:
         
         await query.edit_message_text(
             text=f"💕 {random_flirt}",
-            reply_markup=reply_markup
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
         )
         
     except Exception as e:
@@ -871,8 +965,9 @@ async def handle_flirt(query) -> int:
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
-            text="oops! something went wrong with my rizz game... L rizz 😬",
-            reply_markup=reply_markup
+            text="**oops!** something went wrong with my rizz game... L rizz 😬",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
         )
     
     return MENU
@@ -1223,7 +1318,7 @@ async def process_reminder_text(update: Update, context: CallbackContext) -> int
     
     except Exception as e:
         logger.error(f"Error processing reminder text: {e}")
-        await update.message.reply_text("oops! something went wrong. let's start over with /start")
+        await update.message.reply_text("oops! something went wrong. let's start over with /start", parse_mode='Markdown')
         return MENU
 
 async def process_reminder_time(update: Update, context: CallbackContext) -> int:
@@ -1474,7 +1569,7 @@ async def process_daily_reminder_text(update: Update, context: CallbackContext) 
         return WAITING_DAILY_REMINDER_TIME
     except Exception as e:
         logger.error(f"Error processing daily reminder text: {e}")
-        await update.message.reply_text("oops! something went wrong. let's start over with /start 😅")
+        await update.message.reply_text("oops! something went wrong. let's start over with /start 😅", parse_mode='Markdown')
         return MENU
 
 async def process_daily_reminder_time(update: Update, context: CallbackContext) -> int:
@@ -1683,7 +1778,7 @@ async def process_partner_reminder_text(update: Update, context: CallbackContext
         partner_id = get_partner_user_id(user_id)
         
         if not partner_id:
-            await update.message.reply_text("⚠️ couldn't find your partner! please try again later. 💕")
+            await update.message.reply_text("⚠️ **couldn't find your partner!** please try again later. 💕", parse_mode='Markdown')
             return MENU
         
         context.user_data['partner_reminder_text'] = reminder_text
@@ -1704,7 +1799,7 @@ async def process_partner_reminder_text(update: Update, context: CallbackContext
         
     except Exception as e:
         logger.error(f"Error processing partner reminder text: {e}")
-        await update.message.reply_text("oops! something went wrong. let's start over with /start")
+        await update.message.reply_text("oops! something went wrong. let's start over with /start", parse_mode='Markdown')
         return MENU
 
 async def process_partner_reminder_time(update: Update, context: CallbackContext) -> int:
@@ -1725,7 +1820,7 @@ async def process_partner_reminder_time(update: Update, context: CallbackContext
         user_id = update.effective_user.id
         
         if not partner_id:
-            await update.message.reply_text("⚠️ error: couldn't find partner information. please try again! 💕")
+            await update.message.reply_text("⚠️ **error:** couldn't find partner information. please try again! 💕", parse_mode='Markdown')
             return MENU
         
         partner_name = get_user_name(partner_id) or "your partner"
@@ -2077,7 +2172,7 @@ async def process_photo_upload(update: Update, context: CallbackContext) -> int:
     try:
         user_role = get_user_role(update.effective_user.id)
         if not user_role:
-            await update.message.reply_text("⚠️ error: role not found. please set your role first! 💕")
+            await update.message.reply_text("⚠️ **error:** role not found. please set your role first! 💕", parse_mode='Markdown')
             return MENU
         
         # Get the photo
@@ -2141,7 +2236,7 @@ async def process_video_upload(update: Update, context: CallbackContext) -> int:
     try:
         user_role = get_user_role(update.effective_user.id)
         if not user_role:
-            await update.message.reply_text("⚠️ error: role not found. please set your role first! 💕")
+            await update.message.reply_text("⚠️ **error:** role not found. please set your role first! 💕", parse_mode='Markdown')
             return MENU
         
         # Get the video
@@ -2151,7 +2246,7 @@ async def process_video_upload(update: Update, context: CallbackContext) -> int:
             video = update.message.video_note
         
         if not video:
-            await update.message.reply_text("⚠️ please send a video file! 📹")
+            await update.message.reply_text("⚠️ **please send a video file!** 📹", parse_mode='Markdown')
             return MENU
         
         file = await context.bot.get_file(video.file_id)
@@ -2213,11 +2308,11 @@ async def process_text(update: Update, context: CallbackContext) -> int:
     logger.info(f"Received text input: {update.message.text}")
     try:
         text = update.message.text.strip()
-        await update.message.reply_text(f"{text}? okay buddy... /start to chat bro... 😎")
+        await update.message.reply_text(f"**{text}?** okay buddy... /start to chat bro... 😎", parse_mode='Markdown')
         
     except Exception as e:
         logger.error(f"Error processing text input: {e}")
-        await update.message.reply_text("sorry something broke... 😅")
+        await update.message.reply_text("sorry something broke... 😅", parse_mode='Markdown')
     
     return MENU
 
@@ -2271,6 +2366,10 @@ async def start(update: Update, context: CallbackContext) -> int:
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    # Get current times for both locations
+    times = get_current_times()
+    time_info = f"\n\n🕐 **current times** 🕐\n🇨🇿 **prague:** {times['prague']['full']}\n🇺🇸 **new orleans:** {times['new_orleans']['full']}"
+    
     if user_role:
         name_display = f" {user_name}" if user_name else ""
         welcome_message = (
@@ -2282,10 +2381,12 @@ async def start(update: Update, context: CallbackContext) -> int:
             "• bubbles from your partner 🫧\n"
             "• relationship stats 📊\n"
             "• reminders ⏰\n"
-            "• daily reminders 📅\n\n"
+            "• daily reminders 📅\n"
+            "• partner reminders 💌\n\n"
             "**plus, you can now submit content for your partner!** ✨\n\n"
             "**choose what you need right now! ✨**\n"
             "_(i'll keep running until you type /stop or click exit)_ 💕"
+            f"{time_info}"
         )
     else:
         welcome_message = (
@@ -2302,6 +2403,7 @@ async def start(update: Update, context: CallbackContext) -> int:
             "• relationship stats 📊\n"
             "• reminders ⏰\n\n"
             "_(i'll keep running until you type /stop or click exit)_ ✨"
+            f"{time_info}"
         )
     
     await update.message.reply_text(
@@ -2370,14 +2472,18 @@ async def button(update: Update, context: CallbackContext) -> int:
     elif query.data == "back_to_menu":
         return await show_main_menu_from_query(query)
     elif query.data == "exit":
-        await query.edit_message_text(text="goodbye love! thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!")
+        await query.edit_message_text(
+            text="**goodbye love!** thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!",
+            parse_mode='Markdown'
+        )
         return ConversationHandler.END
     else:
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(
-            text="unknown option selected. let's try again! 🔄",
-            reply_markup=reply_markup
+            text="**unknown option selected.** let's try again! 🔄",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
         )
         return MENU
 
@@ -2393,7 +2499,7 @@ async def stop(update: Update, context: CallbackContext) -> int:
     Returns:
         int: ConversationHandler.END to end conversation
     """
-    await update.message.reply_text("goodbye love! thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!")
+    await update.message.reply_text("**goodbye love!** thanks for letting me brighten your day 💕✨\n\ntype /start anytime to chat again!", parse_mode='Markdown')
     return ConversationHandler.END
 
 # Cancel handler
@@ -2443,10 +2549,14 @@ async def cancel(update: Update, context: CallbackContext) -> int:
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
+    # Get current times for both locations
+    times = get_current_times()
+    time_info = f"\n\n🕐 **current times** 🕐\n🇨🇿 **prague:** {times['prague']['full']}\n🇺🇸 **new orleans:** {times['new_orleans']['full']}"
+    
     if user_role:
-        message_text = f"💫 **back to the main menu!** 💫\nrole: **{user_role}** 👤\n\nwhat would you like to do next? ✨"
+        message_text = f"💫 **back to the main menu!** 💫\nrole: **{user_role}** 👤\n\nwhat would you like to do next? ✨{time_info}"
     else:
-        message_text = "💫 **back to the main menu!** 💫\n⚠️ please set your role first to access all features! 💕\n\nwhat would you like to do? ✨"
+        message_text = f"💫 **back to the main menu!** 💫\n⚠️ please set your role first to access all features! 💕\n\nwhat would you like to do? ✨{time_info}"
     
     await update.message.reply_text(
         message_text,
@@ -2481,8 +2591,9 @@ async def version(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         logger.error(f"Error in version command: {e}")
         await update.message.reply_text(
-            "🤖 anselmbot v1.0.0 by Anselm Long 💕\n"
-            "oops! something went wrong displaying version info 😅"
+            "🤖 **anselmbot** v1.0.0 by Anselm Long 💕\n"
+            "oops! something went wrong displaying version info 😅",
+            parse_mode='Markdown'
         )
 
 # Reminders command handler
@@ -2511,7 +2622,8 @@ async def reminders(update: Update, context: CallbackContext) -> None:
             await update.message.reply_text(
                 f"📋 **your reminders** 📋\n\n"
                 f"you have no active reminders right now! 😊\n\n"
-                f"use /start to set up some reminders! ✨"
+                f"use /start to set up some reminders! ✨",
+                parse_mode='Markdown'
             )
             return
         
@@ -2560,8 +2672,43 @@ async def reminders(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         logger.error(f"Error in reminders command: {e}")
         await update.message.reply_text(
-            "oops! something went wrong checking your reminders 😅\n"
-            "use /start to access the reminder system! 💕"
+            "**oops!** something went wrong checking your reminders 😅\n"
+            "use /start to access the reminder system! 💕",
+            parse_mode='Markdown'
+        )
+
+# Timezone command handler
+async def timezone(update: Update, context: CallbackContext) -> None:
+    """
+    Handle /timezone command to show current times in both locations.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+    """
+    try:
+        times = get_current_times()
+        
+        message = (
+            "🌍 **worldwide couple times** 🌍\n\n"
+            f"🇨🇿 **prague, czech republic**\n"
+            f"⏰ {times['prague']['full']}\n\n"
+            f"🇺🇸 **new orleans, usa**\n" 
+            f"⏰ {times['new_orleans']['full']}\n\n"
+            "💕 love knows no distance or time zone! ✨"
+        )
+        
+        await update.message.reply_text(
+            message,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in timezone command: {e}")
+        await update.message.reply_text(
+            "**oops!** something went wrong checking the time 😅\n"
+            "maybe time is relative after all! 💕",
+            parse_mode='Markdown'
         )
 
 # Main function to start the bot
@@ -2619,6 +2766,9 @@ def main():
     
     # Add reminders command handler
     application.add_handler(CommandHandler("reminders", reminders))
+    
+    # Add timezone command handler
+    application.add_handler(CommandHandler("timezone", timezone))
     
     logger.info("Bot started successfully! 🤖💕")
     logger.info("Bot will keep running and return to menu after each action")
