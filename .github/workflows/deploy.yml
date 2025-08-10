@@ -2,20 +2,31 @@ name: Deploy to DigitalOcean
 
 on:
   push:
-    branches:
-      - main  # or your deployment branch
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.DROPLET_IP }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          cd /root/anselmbot
-          git pull origin main
-          screen -dmS bot python3 main.py
+      - name: Verify required secrets
+        run: |
+          for v in DROPLET_IP SSH_USER SSH_PRIVATE_KEY; do
+            if [ -z "${!v}" ]; then echo "Missing secret: $v"; exit 1; fi
+          done
+        env:
+          DROPLET_IP: ${{ secrets.DROPLET_IP }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            cd /root/your-bot-folder
+            git pull origin main
+            pm2 restart telegrambot || screen -dmS bot python3 bot.py
