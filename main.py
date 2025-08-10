@@ -25,7 +25,7 @@ load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
 # Define states for conversation
-MENU, WAITING_REMINDER_TEXT, WAITING_REMINDER_TIME, WAITING_PHOTO_UPLOAD, WAITING_BUBBLE_TEXT, WAITING_VIDEO_UPLOAD, WAITING_NAME_INPUT, WAITING_DAILY_REMINDER_TEXT, WAITING_DAILY_REMINDER_TIME, DEFAULT = range(10)
+MENU, WAITING_REMINDER_TEXT, WAITING_REMINDER_TIME, WAITING_PHOTO_UPLOAD, WAITING_BUBBLE_TEXT, WAITING_VIDEO_UPLOAD, WAITING_NAME_INPUT, WAITING_DAILY_REMINDER_TEXT, WAITING_DAILY_REMINDER_TIME, WAITING_PARTNER_REMINDER_TEXT, WAITING_PARTNER_REMINDER_TIME, DEFAULT = range(12)
 
 # Set up logging for the bot
 logging.basicConfig(
@@ -214,6 +214,206 @@ def get_user_daily_reminders(user_id: int) -> list:
         logger.error(f"Error getting daily reminders: {e}")
         return []
 
+def get_user_one_time_reminders(user_id: int) -> list:
+    """
+    Get one-time reminders for a specific user.
+    
+    Args:
+        user_id (int): Telegram user ID
+        
+    Returns:
+        list: List of one-time reminders for the user
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        one_time_reminders = data.get('one_time_reminders', {})
+        return one_time_reminders.get(str(user_id), [])
+    except Exception as e:
+        logger.error(f"Error getting one-time reminders: {e}")
+        return []
+
+def save_one_time_reminder(user_id: int, reminder_text: str, reminder_datetime: str) -> bool:
+    """
+    Save a one-time reminder for a user.
+    
+    Args:
+        user_id (int): Telegram user ID
+        reminder_text (str): The reminder message
+        reminder_datetime (str): DateTime in ISO format
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        if 'one_time_reminders' not in data:
+            data['one_time_reminders'] = {}
+        
+        if str(user_id) not in data['one_time_reminders']:
+            data['one_time_reminders'][str(user_id)] = []
+        
+        # Add the new reminder
+        reminder = {
+            'text': reminder_text,
+            'datetime': reminder_datetime,
+            'sent': False,
+            'created_at': datetime.datetime.now().isoformat()
+        }
+        
+        data['one_time_reminders'][str(user_id)].append(reminder)
+        return save_json_data('bot_data.json', data)
+        
+    except Exception as e:
+        logger.error(f"Error saving one-time reminder: {e}")
+        return False
+
+def mark_reminder_sent(user_id: int, reminder_index: int) -> bool:
+    """
+    Mark a one-time reminder as sent.
+    
+    Args:
+        user_id (int): Telegram user ID
+        reminder_index (int): Index of the reminder to mark as sent
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        if 'one_time_reminders' not in data or str(user_id) not in data['one_time_reminders']:
+            return False
+        
+        reminders = data['one_time_reminders'][str(user_id)]
+        if 0 <= reminder_index < len(reminders):
+            reminders[reminder_index]['sent'] = True
+            return save_json_data('bot_data.json', data)
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error marking reminder as sent: {e}")
+        return False
+
+def get_partner_user_id(user_id: int) -> Optional[int]:
+    """
+    Get the partner's user ID based on roles.
+    
+    Args:
+        user_id (int): Current user's Telegram ID
+        
+    Returns:
+        Optional[int]: Partner's user ID or None if not found
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        user_roles = data.get('user_roles', {})
+        current_role = user_roles.get(str(user_id))
+        
+        if not current_role:
+            return None
+        
+        # Find partner with opposite role
+        partner_role = 'girlfriend' if current_role == 'boyfriend' else 'boyfriend'
+        
+        for uid, role in user_roles.items():
+            if role == partner_role and int(uid) != user_id:
+                return int(uid)
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error getting partner user ID: {e}")
+        return None
+
+def save_partner_reminder(sender_id: int, partner_id: int, reminder_text: str, reminder_datetime: str) -> bool:
+    """
+    Save a reminder from one partner to another.
+    
+    Args:
+        sender_id (int): User ID who is setting the reminder
+        partner_id (int): Partner's user ID who will receive the reminder
+        reminder_text (str): The reminder message
+        reminder_datetime (str): DateTime in ISO format
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        if 'partner_reminders' not in data:
+            data['partner_reminders'] = {}
+        
+        if str(partner_id) not in data['partner_reminders']:
+            data['partner_reminders'][str(partner_id)] = []
+        
+        # Get sender's name
+        sender_name = get_user_name(sender_id) or "your partner"
+        
+        # Add the new partner reminder
+        reminder = {
+            'text': reminder_text,
+            'datetime': reminder_datetime,
+            'sent': False,
+            'sender_id': sender_id,
+            'sender_name': sender_name,
+            'created_at': datetime.datetime.now().isoformat()
+        }
+        
+        data['partner_reminders'][str(partner_id)].append(reminder)
+        return save_json_data('bot_data.json', data)
+        
+    except Exception as e:
+        logger.error(f"Error saving partner reminder: {e}")
+        return False
+
+def get_user_partner_reminders(user_id: int) -> list:
+    """
+    Get partner reminders for a specific user.
+    
+    Args:
+        user_id (int): Telegram user ID
+        
+    Returns:
+        list: List of partner reminders for the user
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        partner_reminders = data.get('partner_reminders', {})
+        return partner_reminders.get(str(user_id), [])
+    except Exception as e:
+        logger.error(f"Error getting partner reminders: {e}")
+        return []
+
+def mark_partner_reminder_sent(user_id: int, reminder_index: int) -> bool:
+    """
+    Mark a partner reminder as sent.
+    
+    Args:
+        user_id (int): Telegram user ID
+        reminder_index (int): Index of the reminder to mark as sent
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        if 'partner_reminders' not in data or str(user_id) not in data['partner_reminders']:
+            return False
+        
+        reminders = data['partner_reminders'][str(user_id)]
+        if 0 <= reminder_index < len(reminders):
+            reminders[reminder_index]['sent'] = True
+            return save_json_data('bot_data.json', data)
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error marking partner reminder as sent: {e}")
+        return False
+
 def save_daily_reminder(user_id: int, reminder_text: str, reminder_time: str) -> bool:
     """
     Save a daily reminder for a user.
@@ -341,6 +541,7 @@ class DailyReminderScheduler:
         self.application = application
         self.running = False
         self.scheduler_thread = None
+        self.loop = None
     
     def start(self):
         """Start the daily reminder scheduler."""
@@ -359,37 +560,86 @@ class DailyReminderScheduler:
     
     def _run_scheduler(self):
         """Run the scheduler loop."""
+        # Create a new event loop for this thread
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        
         while self.running:
             try:
-                self._check_and_send_reminders()
+                self.loop.run_until_complete(self._check_and_send_reminders())
                 # Check every minute
                 threading.Event().wait(60)
             except Exception as e:
                 logger.error(f"Error in reminder scheduler: {e}")
                 threading.Event().wait(60)
+        
+        # Clean up the loop
+        self.loop.close()
     
-    def _check_and_send_reminders(self):
+    async def _check_and_send_reminders(self):
         """Check if any reminders need to be sent now."""
         try:
-            current_time = datetime.datetime.now().strftime("%H:%M")
-            data = load_json_data('bot_data.json')
-            daily_reminders = data.get('daily_reminders', {})
+            now = datetime.datetime.now()
+            current_time = now.strftime("%H:%M")
+            current_datetime = now
             
+            data = load_json_data('bot_data.json')
+            
+            # Check daily reminders
+            daily_reminders = data.get('daily_reminders', {})
             for user_id, reminders in daily_reminders.items():
                 for reminder in reminders:
                     if (reminder.get('active', True) and 
                         reminder.get('time') == current_time):
                         
-                        # Send the reminder
-                        asyncio.create_task(
-                            self._send_reminder(int(user_id), reminder['text'])
-                        )
-                        
+                        # Send the daily reminder
+                        await self._send_daily_reminder(int(user_id), reminder['text'])
+            
+            # Check one-time reminders
+            one_time_reminders = data.get('one_time_reminders', {})
+            for user_id, reminders in one_time_reminders.items():
+                for i, reminder in enumerate(reminders):
+                    if not reminder.get('sent', False):
+                        try:
+                            reminder_datetime = datetime.datetime.fromisoformat(reminder['datetime'])
+                            # Check if reminder time has passed (within 1 minute window)
+                            if (current_datetime >= reminder_datetime and 
+                                (current_datetime - reminder_datetime).total_seconds() < 60):
+                                
+                                # Send the one-time reminder
+                                await self._send_one_time_reminder(int(user_id), reminder['text'])
+                                # Mark as sent
+                                mark_reminder_sent(int(user_id), i)
+                        except ValueError:
+                            logger.error(f"Invalid datetime format in reminder: {reminder['datetime']}")
+            
+            # Check partner reminders
+            partner_reminders = data.get('partner_reminders', {})
+            for user_id, reminders in partner_reminders.items():
+                for i, reminder in enumerate(reminders):
+                    if not reminder.get('sent', False):
+                        try:
+                            reminder_datetime = datetime.datetime.fromisoformat(reminder['datetime'])
+                            # Check if reminder time has passed (within 1 minute window)
+                            if (current_datetime >= reminder_datetime and 
+                                (current_datetime - reminder_datetime).total_seconds() < 60):
+                                
+                                # Send the partner reminder
+                                await self._send_partner_reminder(
+                                    int(user_id), 
+                                    reminder['text'], 
+                                    reminder.get('sender_name', 'your partner')
+                                )
+                                # Mark as sent
+                                mark_partner_reminder_sent(int(user_id), i)
+                        except ValueError:
+                            logger.error(f"Invalid datetime format in partner reminder: {reminder['datetime']}")
+                            
         except Exception as e:
             logger.error(f"Error checking reminders: {e}")
     
-    async def _send_reminder(self, user_id: int, reminder_text: str):
-        """Send a reminder to a user."""
+    async def _send_daily_reminder(self, user_id: int, reminder_text: str):
+        """Send a daily reminder to a user."""
         try:
             user_name = get_user_name(user_id)
             name_part = f" {user_name}" if user_name else ""
@@ -404,7 +654,43 @@ class DailyReminderScheduler:
             logger.info(f"Daily reminder sent to user {user_id}")
             
         except Exception as e:
-            logger.error(f"Error sending reminder to user {user_id}: {e}")
+            logger.error(f"Error sending daily reminder to user {user_id}: {e}")
+    
+    async def _send_one_time_reminder(self, user_id: int, reminder_text: str):
+        """Send a one-time reminder to a user."""
+        try:
+            user_name = get_user_name(user_id)
+            name_part = f" {user_name}" if user_name else ""
+            
+            message = f"🔔 **reminder time!** 🔔\n\n💕 hey{name_part}! 💕\n\n📝 {reminder_text}\n\n✨ hope this helps! ✨"
+            
+            await self.application.bot.send_message(
+                chat_id=user_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            logger.info(f"One-time reminder sent to user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error sending one-time reminder to user {user_id}: {e}")
+    
+    async def _send_partner_reminder(self, user_id: int, reminder_text: str, sender_name: str):
+        """Send a partner reminder to a user."""
+        try:
+            user_name = get_user_name(user_id)
+            name_part = f" {user_name}" if user_name else ""
+            
+            message = f"💌 **reminder from {sender_name}!** 💌\n\n💕 hey{name_part}! 💕\n\n📝 {sender_name} wanted to remind you: {reminder_text}\n\n✨ they're thinking of you! ✨"
+            
+            await self.application.bot.send_message(
+                chat_id=user_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            logger.info(f"Partner reminder sent to user {user_id} from {sender_name}")
+            
+        except Exception as e:
+            logger.error(f"Error sending partner reminder to user {user_id}: {e}")
 
 # Global scheduler instance
 reminder_scheduler = None
@@ -472,11 +758,12 @@ async def show_main_menu_from_query(query) -> int:
         [InlineKeyboardButton("📅 daily reminders", callback_data="daily_reminders")]
     ]
     
-    # Add role-specific submission options
+    # Add role-specific submission options and partner reminders
     if user_role:
         keyboard.extend([
             [InlineKeyboardButton("📤 submit photo for partner", callback_data="submit_photo")],
             [InlineKeyboardButton("🫧 submit bubble for partner", callback_data="submit_bubble")],
+            [InlineKeyboardButton("💌 set reminder for partner", callback_data="partner_reminder")]
         ])
     
     # Role management and exit options
@@ -951,41 +1238,111 @@ async def process_reminder_time(update: Update, context: CallbackContext) -> int
         int: MENU to return to main menu after setting reminder
     """
     try:
-        time_input = update.message.text.lower()
+        time_input = update.message.text.lower().strip()
         reminder_text = context.user_data.get('reminder_text', 'generic reminder')
+        user_id = update.effective_user.id
         
         # Create back to menu keyboard
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        # Simple reminder processing (in a real bot, you'd use proper scheduling)
         if time_input == "now":
+            # Send immediate reminder
+            user_name = get_user_name(user_id)
+            name_part = f" {user_name}" if user_name else ""
             await update.message.reply_text(
-                f"⏰ **reminder:** {reminder_text} 🔔", 
+                f"🔔 **reminder right now!** 🔔\n\n💕 hey{name_part}! 💕\n\n📝 {reminder_text}\n\n✨ here's your reminder! ✨", 
                 parse_mode='Markdown',
                 reply_markup=reply_markup
             )
         elif time_input == "tomorrow":
-            await update.message.reply_text(
-                f"✅ reminder set for tomorrow: \"{reminder_text}\" 📅\n"
-                "📝 (note: this is a demo - real scheduling would be implemented with proper task scheduler) 💻",
-                reply_markup=reply_markup,
-                parse_mode='Markdown'
-            )
+            # Schedule for same time tomorrow
+            now = datetime.datetime.now()
+            tomorrow = now + datetime.timedelta(days=1)
+            reminder_datetime = tomorrow.replace(second=0, microsecond=0)
+            
+            success = save_one_time_reminder(user_id, reminder_text, reminder_datetime.isoformat())
+            
+            if success:
+                await update.message.reply_text(
+                    f"✅ **reminder scheduled for tomorrow!** 📅\n\n"
+                    f"⏰ **time:** {reminder_datetime.strftime('%B %d, %Y at %I:%M %p')}\n"
+                    f"📝 **message:** \"{reminder_text}\"\n\n"
+                    f"i'll send you this reminder tomorrow! ✨",
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ failed to schedule reminder. please try again! �",
+                    reply_markup=reply_markup
+                )
         elif ":" in time_input:
-            await update.message.reply_text(
-                f"✅ reminder set for {time_input}: \"{reminder_text}\" ⏰\n"
-                "📝 (note: this is a demo - real scheduling would be implemented with proper task scheduler) 💻",
-                reply_markup=reply_markup,
-                parse_mode='Markdown'
-            )
+            # Parse time format HH:MM
+            try:
+                time_obj = datetime.datetime.strptime(time_input, "%H:%M")
+                now = datetime.datetime.now()
+                
+                # Schedule for today if time hasn't passed, otherwise tomorrow
+                reminder_datetime = now.replace(
+                    hour=time_obj.hour, 
+                    minute=time_obj.minute, 
+                    second=0, 
+                    microsecond=0
+                )
+                
+                if reminder_datetime <= now:
+                    # Time has passed today, schedule for tomorrow
+                    reminder_datetime += datetime.timedelta(days=1)
+                
+                success = save_one_time_reminder(user_id, reminder_text, reminder_datetime.isoformat())
+                
+                if success:
+                    display_time = reminder_datetime.strftime("%I:%M %p").lstrip('0')
+                    day_text = "today" if reminder_datetime.date() == now.date() else "tomorrow"
+                    
+                    await update.message.reply_text(
+                        f"✅ **reminder scheduled!** ⏰\n\n"
+                        f"⏰ **time:** {day_text} at {display_time}\n"
+                        f"📝 **message:** \"{reminder_text}\"\n\n"
+                        f"i'll send you this reminder {day_text}! ✨",
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ failed to schedule reminder. please try again! 😅",
+                        reply_markup=reply_markup
+                    )
+                    
+            except ValueError:
+                await update.message.reply_text(
+                    "❌ **invalid time format!** ⏰\n\n"
+                    "please use **HH:MM** format (24-hour):\n"
+                    "• **09:00** ✅\n"
+                    "• **14:30** ✅\n"
+                    "• **9:00** ❌ (use 09:00)\n"
+                    "• **2:30 PM** ❌ (use 14:30)\n\n"
+                    "or use:\n"
+                    "• **now** for immediate reminder ⚡\n"
+                    "• **tomorrow** for same time tomorrow 📅\n\n"
+                    "try again! �",
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+                return WAITING_REMINDER_TIME
         else:
             await update.message.reply_text(
-                f"⏰ reminder noted: \"{reminder_text}\" 📝\n"
-                "⏰ i'll try to remember that for you! (this is a demo feature) ✨",
+                f"❌ **couldn't understand time format!** 😅\n\n"
+                f"please try:\n"
+                f"• **HH:MM** format (e.g., 14:30) ⏰\n"
+                f"• **now** for immediate reminder ⚡\n"
+                f"• **tomorrow** for same time tomorrow 📅\n\n"
+                f"your reminder \"{reminder_text}\" is waiting! 💕",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
+            return WAITING_REMINDER_TIME
         
         return MENU
     
@@ -1246,6 +1603,266 @@ async def handle_delete_reminder(query, reminder_index: int) -> int:
         logger.error(f"Error deleting reminder: {e}")
         await query.answer("❌ error occurred")
         return await show_main_menu_from_query(query)
+
+# Partner reminder handlers
+async def handle_partner_reminder(query) -> int:
+    """
+    Handle partner reminder button click and start reminder creation process.
+    
+    Args:
+        query: Telegram callback query object
+        
+    Returns:
+        int: WAITING_PARTNER_REMINDER_TEXT state to continue conversation
+    """
+    try:
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        partner_id = get_partner_user_id(user_id)
+        
+        if not user_role:
+            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="⚠️ please set your role first! 💕",
+                reply_markup=reply_markup
+            )
+            return MENU
+        
+        if not partner_id:
+            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="⚠️ couldn't find your partner! make sure they've set their role too! 💕\n\n"
+                     "both of you need to use the bot and set your roles (boyfriend/girlfriend) to use partner reminders! ✨",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            return MENU
+        
+        partner_role = "girlfriend" if user_role == "boyfriend" else "boyfriend"
+        partner_name = get_user_name(partner_id) or f"your {partner_role}"
+        
+        await query.edit_message_text(
+            text=f"💌 **set a reminder for {partner_name}!** 💌\n\n"
+                 f"what would you like to remind {partner_name} about? just type your reminder message! 💕\n\n"
+                 f"_(type /cancel to go back to menu)_",
+            parse_mode='Markdown'
+        )
+        
+        # Store partner info in context
+        context_key = f"partner_reminder_{user_id}"
+        # We'll use user_data in the actual handler
+        
+        return WAITING_PARTNER_REMINDER_TEXT
+        
+    except Exception as e:
+        logger.error(f"Error in handle_partner_reminder: {e}")
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text="oops! partner reminder system had a hiccup 😅 try again later!",
+            reply_markup=reply_markup
+        )
+        return MENU
+
+async def process_partner_reminder_text(update: Update, context: CallbackContext) -> int:
+    """
+    Process the partner reminder text input from user.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+        
+    Returns:
+        int: WAITING_PARTNER_REMINDER_TIME state to continue conversation
+    """
+    try:
+        user_id = update.effective_user.id
+        reminder_text = update.message.text.strip()
+        partner_id = get_partner_user_id(user_id)
+        
+        if not partner_id:
+            await update.message.reply_text("⚠️ couldn't find your partner! please try again later. 💕")
+            return MENU
+        
+        context.user_data['partner_reminder_text'] = reminder_text
+        context.user_data['partner_id'] = partner_id
+        
+        partner_name = get_user_name(partner_id) or "your partner"
+        
+        await update.message.reply_text(
+            f"📝 **reminder for {partner_name}:** \"{reminder_text}\" ✨\n\n"
+            f"⏰ **when should i remind {partner_name}?** send me the time in format:\n"
+            f"• **HH:MM** (e.g., 14:30 for 2:30 PM) 🕐\n"
+            f"• or just say **now** for immediate reminder ⚡\n"
+            f"• or **tomorrow** for same time tomorrow 📅\n\n"
+            f"_(type /cancel to go back to menu)_ 💕",
+            parse_mode='Markdown'
+        )
+        return WAITING_PARTNER_REMINDER_TIME
+        
+    except Exception as e:
+        logger.error(f"Error processing partner reminder text: {e}")
+        await update.message.reply_text("oops! something went wrong. let's start over with /start")
+        return MENU
+
+async def process_partner_reminder_time(update: Update, context: CallbackContext) -> int:
+    """
+    Process the partner reminder time input and save the reminder.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+        
+    Returns:
+        int: MENU to return to main menu after setting partner reminder
+    """
+    try:
+        time_input = update.message.text.lower().strip()
+        reminder_text = context.user_data.get('partner_reminder_text', 'generic partner reminder')
+        partner_id = context.user_data.get('partner_id')
+        user_id = update.effective_user.id
+        
+        if not partner_id:
+            await update.message.reply_text("⚠️ error: couldn't find partner information. please try again! 💕")
+            return MENU
+        
+        partner_name = get_user_name(partner_id) or "your partner"
+        user_name = get_user_name(user_id) or "your partner"
+        
+        # Create back to menu keyboard
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if time_input == "now":
+            # Send immediate partner reminder
+            try:
+                await update.message.bot.send_message(
+                    chat_id=partner_id,
+                    text=f"💌 **reminder from {user_name}!** 💌\n\n💕 hey! 💕\n\n📝 {user_name} wanted to remind you: {reminder_text}\n\n✨ they're thinking of you right now! ✨",
+                    parse_mode='Markdown'
+                )
+                
+                await update.message.reply_text(
+                    f"✅ **immediate reminder sent to {partner_name}!** 💌\n\n"
+                    f"📝 **message:** \"{reminder_text}\"\n\n"
+                    f"they got your reminder right away! 💕", 
+                    parse_mode='Markdown',
+                    reply_markup=reply_markup
+                )
+            except Exception as send_error:
+                logger.error(f"Error sending immediate partner reminder: {send_error}")
+                await update.message.reply_text(
+                    f"❌ **couldn't send immediate reminder to {partner_name}** 😅\n\n"
+                    f"they might not have started the bot yet. try scheduling it for later instead! 💕",
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+                
+        elif time_input == "tomorrow":
+            # Schedule for same time tomorrow
+            now = datetime.datetime.now()
+            tomorrow = now + datetime.timedelta(days=1)
+            reminder_datetime = tomorrow.replace(second=0, microsecond=0)
+            
+            success = save_partner_reminder(user_id, partner_id, reminder_text, reminder_datetime.isoformat())
+            
+            if success:
+                await update.message.reply_text(
+                    f"✅ **partner reminder scheduled for tomorrow!** 📅\n\n"
+                    f"👤 **for:** {partner_name}\n"
+                    f"⏰ **time:** {reminder_datetime.strftime('%B %d, %Y at %I:%M %p')}\n"
+                    f"📝 **message:** \"{reminder_text}\"\n\n"
+                    f"i'll remind {partner_name} tomorrow! 💕",
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ failed to schedule partner reminder. please try again! 😅",
+                    reply_markup=reply_markup
+                )
+                
+        elif ":" in time_input:
+            # Parse time format HH:MM
+            try:
+                time_obj = datetime.datetime.strptime(time_input, "%H:%M")
+                now = datetime.datetime.now()
+                
+                # Schedule for today if time hasn't passed, otherwise tomorrow
+                reminder_datetime = now.replace(
+                    hour=time_obj.hour, 
+                    minute=time_obj.minute, 
+                    second=0, 
+                    microsecond=0
+                )
+                
+                if reminder_datetime <= now:
+                    # Time has passed today, schedule for tomorrow
+                    reminder_datetime += datetime.timedelta(days=1)
+                
+                success = save_partner_reminder(user_id, partner_id, reminder_text, reminder_datetime.isoformat())
+                
+                if success:
+                    display_time = reminder_datetime.strftime("%I:%M %p").lstrip('0')
+                    day_text = "today" if reminder_datetime.date() == now.date() else "tomorrow"
+                    
+                    await update.message.reply_text(
+                        f"✅ **partner reminder scheduled!** 💌\n\n"
+                        f"👤 **for:** {partner_name}\n"
+                        f"⏰ **time:** {day_text} at {display_time}\n"
+                        f"📝 **message:** \"{reminder_text}\"\n\n"
+                        f"i'll remind {partner_name} {day_text}! 💕",
+                        reply_markup=reply_markup,
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ failed to schedule partner reminder. please try again! 😅",
+                        reply_markup=reply_markup
+                    )
+                    
+            except ValueError:
+                await update.message.reply_text(
+                    f"❌ **invalid time format!** ⏰\n\n"
+                    f"please use **HH:MM** format (24-hour):\n"
+                    f"• **09:00** ✅\n"
+                    f"• **14:30** ✅\n"
+                    f"• **9:00** ❌ (use 09:00)\n"
+                    f"• **2:30 PM** ❌ (use 14:30)\n\n"
+                    f"or use:\n"
+                    f"• **now** for immediate reminder ⚡\n"
+                    f"• **tomorrow** for same time tomorrow 📅\n\n"
+                    f"try again! 😊",
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+                return WAITING_PARTNER_REMINDER_TIME
+        else:
+            await update.message.reply_text(
+                f"❌ **couldn't understand time format!** 😅\n\n"
+                f"please try:\n"
+                f"• **HH:MM** format (e.g., 14:30) ⏰\n"
+                f"• **now** for immediate reminder ⚡\n"
+                f"• **tomorrow** for same time tomorrow 📅\n\n"
+                f"your reminder for {partner_name}: \"{reminder_text}\" is waiting! 💕",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            return WAITING_PARTNER_REMINDER_TIME
+        
+        return MENU
+    
+    except Exception as e:
+        logger.error(f"Error processing partner reminder time: {e}")
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "oops! partner reminder system had a hiccup 😅 but your love got through anyway! 💕",
+            reply_markup=reply_markup
+        )
+        return MENU
 
 # Role management handlers
 async def handle_set_role(query) -> int:
@@ -1632,11 +2249,12 @@ async def start(update: Update, context: CallbackContext) -> int:
         [InlineKeyboardButton("📅 daily reminders", callback_data="daily_reminders")]
     ]
     
-    # Add role-specific submission options
+    # Add role-specific submission options and partner reminders
     if user_role:
         keyboard.extend([
             [InlineKeyboardButton("📤 submit photo for partner", callback_data="submit_photo")],
             [InlineKeyboardButton("🫧 submit bubble for partner", callback_data="submit_bubble")],
+            [InlineKeyboardButton("💌 set reminder for partner", callback_data="partner_reminder")]
         ])
     
     # Role management and exit options
@@ -1747,6 +2365,8 @@ async def button(update: Update, context: CallbackContext) -> int:
         return await handle_submit_photo(query)
     elif query.data == "submit_bubble":
         return await handle_submit_bubble(query)
+    elif query.data == "partner_reminder":
+        return await handle_partner_reminder(query)
     elif query.data == "back_to_menu":
         return await show_main_menu_from_query(query)
     elif query.data == "exit":
@@ -1801,11 +2421,12 @@ async def cancel(update: Update, context: CallbackContext) -> int:
         [InlineKeyboardButton("⏰ set a reminder", callback_data="reminder")]
     ]
     
-    # Add role-specific submission options
+    # Add role-specific submission options and partner reminders
     if user_role:
         keyboard.extend([
             [InlineKeyboardButton("📤 submit photo for partner", callback_data="submit_photo")],
-            [InlineKeyboardButton("🫧 submit bubble for partner", callback_data="submit_bubble")]
+            [InlineKeyboardButton("🫧 submit bubble for partner", callback_data="submit_bubble")],
+            [InlineKeyboardButton("💌 set reminder for partner", callback_data="partner_reminder")]
         ])
     
     # Role management and exit options
@@ -1833,6 +2454,114 @@ async def cancel(update: Update, context: CallbackContext) -> int:
         parse_mode='Markdown'
     )
     return MENU
+
+# Version command handler
+async def version(update: Update, context: CallbackContext) -> None:
+    """
+    Handle /version command and display bot version and author information.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+    """
+    try:
+        version_info = (
+            "🤖 **anselmbot version info** 🤖\n\n"
+            "📍 **version:** 1.0.0\n"
+            "👨‍💻 **author:** Anselm Long\n"
+            "💕 **purpose:** making long-distance love a little easier i hope ✨\n\n"
+        )
+        
+        await update.message.reply_text(
+            version_info,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in version command: {e}")
+        await update.message.reply_text(
+            "🤖 anselmbot v1.0.0 by Anselm Long 💕\n"
+            "oops! something went wrong displaying version info 😅"
+        )
+
+# Reminders command handler
+async def reminders(update: Update, context: CallbackContext) -> None:
+    """
+    Handle /reminders command to show all active reminders for the user.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+    """
+    try:
+        user_id = update.effective_user.id
+        user_name = get_user_name(user_id)
+        
+        # Get all types of reminders
+        daily_reminders = get_user_daily_reminders(user_id)
+        one_time_reminders = get_user_one_time_reminders(user_id)
+        partner_reminders = get_user_partner_reminders(user_id)
+        
+        # Filter out sent reminders
+        pending_one_time = [r for r in one_time_reminders if not r.get('sent', False)]
+        pending_partner = [r for r in partner_reminders if not r.get('sent', False)]
+        
+        if not daily_reminders and not pending_one_time and not pending_partner:
+            await update.message.reply_text(
+                f"📋 **your reminders** 📋\n\n"
+                f"you have no active reminders right now! 😊\n\n"
+                f"use /start to set up some reminders! ✨"
+            )
+            return
+        
+        message = f"📋 **your active reminders** 📋\n\n"
+        
+        if daily_reminders:
+            message += "🔄 **daily reminders:**\n"
+            for i, reminder in enumerate(daily_reminders):
+                status = "✅" if reminder.get('active', True) else "❌"
+                time_obj = datetime.datetime.strptime(reminder['time'], "%H:%M")
+                display_time = time_obj.strftime("%I:%M %p").lstrip('0')
+                message += f"{i+1}. {status} **{display_time}** - {reminder['text']}\n"
+            message += "\n"
+        
+        if pending_one_time:
+            message += "⏰ **scheduled reminders:**\n"
+            for i, reminder in enumerate(pending_one_time):
+                try:
+                    reminder_dt = datetime.datetime.fromisoformat(reminder['datetime'])
+                    display_dt = reminder_dt.strftime("%B %d, %Y at %I:%M %p")
+                    message += f"{i+1}. **{display_dt}** - {reminder['text']}\n"
+                except ValueError:
+                    message += f"{i+1}. **invalid date** - {reminder['text']}\n"
+            message += "\n"
+        
+        if pending_partner:
+            message += "💌 **partner reminders for you:**\n"
+            for i, reminder in enumerate(pending_partner):
+                try:
+                    reminder_dt = datetime.datetime.fromisoformat(reminder['datetime'])
+                    display_dt = reminder_dt.strftime("%B %d, %Y at %I:%M %p")
+                    sender_name = reminder.get('sender_name', 'your partner')
+                    message += f"{i+1}. **{display_dt}** from {sender_name}: {reminder['text']}\n"
+                except ValueError:
+                    sender_name = reminder.get('sender_name', 'your partner')
+                    message += f"{i+1}. **invalid date** from {sender_name}: {reminder['text']}\n"
+            message += "\n"
+        
+        message += "💡 use /start to manage your reminders! ✨"
+        
+        await update.message.reply_text(
+            message,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in reminders command: {e}")
+        await update.message.reply_text(
+            "oops! something went wrong checking your reminders 😅\n"
+            "use /start to access the reminder system! 💕"
+        )
 
 # Main function to start the bot
 def main():
@@ -1867,6 +2596,8 @@ def main():
             WAITING_REMINDER_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_reminder_time)],
             WAITING_DAILY_REMINDER_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_daily_reminder_text)],
             WAITING_DAILY_REMINDER_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_daily_reminder_time)],
+            WAITING_PARTNER_REMINDER_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_partner_reminder_text)],
+            WAITING_PARTNER_REMINDER_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_partner_reminder_time)],
             WAITING_PHOTO_UPLOAD: [MessageHandler(filters.PHOTO, process_photo_upload)],
             WAITING_VIDEO_UPLOAD: [MessageHandler(filters.VIDEO | filters.VIDEO_NOTE, process_video_upload)],
             WAITING_NAME_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_name_input)],
@@ -1881,6 +2612,12 @@ def main():
     )
 
     application.add_handler(conv_handler)
+    
+    # Add version command handler
+    application.add_handler(CommandHandler("version", version))
+    
+    # Add reminders command handler
+    application.add_handler(CommandHandler("reminders", reminders))
     
     logger.info("Bot started successfully! 🤖💕")
     logger.info("Bot will keep running and return to menu after each action")
