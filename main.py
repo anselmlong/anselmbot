@@ -4,6 +4,7 @@ import json
 import random
 import datetime
 import asyncio
+from re import S
 import threading
 import pytz
 from typing import Optional, Dict, Any
@@ -36,14 +37,9 @@ logger = logging.getLogger(__name__)
 
 # Timezone configuration
 TIMEZONES = {
-    'boyfriend': 'America/New_York',  # New Orleans is in Central Time, but using Eastern for now
-    'girlfriend': 'Europe/Prague'
-}
-
-# Actually, let's use the correct timezone for New Orleans
-TIMEZONES = {
     'boyfriend': 'America/Chicago',  # New Orleans is in Central Time
-    'girlfriend': 'Europe/Prague'
+    'girlfriend': 'Europe/Prague',
+    'singapore': 'Asia/Singapore'
 }
 
 def get_current_times():
@@ -56,11 +52,13 @@ def get_current_times():
     try:
         prague_tz = pytz.timezone(TIMEZONES['girlfriend'])
         new_orleans_tz = pytz.timezone(TIMEZONES['boyfriend'])
+        singapore_tz = pytz.timezone(TIMEZONES['singapore'])
         
         utc_now = datetime.datetime.now(pytz.UTC)
         
         prague_time = utc_now.astimezone(prague_tz)
         new_orleans_time = utc_now.astimezone(new_orleans_tz)
+        singapore_time = utc_now.astimezone(singapore_tz)
         
         return {
             'prague': {
@@ -72,13 +70,20 @@ def get_current_times():
                 'time': new_orleans_time.strftime("%I:%M %p"), 
                 'date': new_orleans_time.strftime("%B %d"),
                 'full': new_orleans_time.strftime("%I:%M %p, %B %d")
+            },
+            'singapore': {
+                'time': singapore_time.strftime("%I:%M %p"),
+                'date': singapore_time.strftime("%B %d"),
+                'full': singapore_time.strftime("%I:%M %p, %B %d")
             }
+            
         }
     except Exception as e:
         logger.error(f"Error getting current times: {e}")
         return {
             'prague': {'time': 'N/A', 'date': 'N/A', 'full': 'N/A'},
-            'new_orleans': {'time': 'N/A', 'date': 'N/A', 'full': 'N/A'}
+            'new_orleans': {'time': 'N/A', 'date': 'N/A', 'full': 'N/A'},
+            'singapore': {'time': 'N/A', 'date': 'N/A', 'full': 'N/A'}
         }
 
 def get_user_timezone(user_role: str) -> str:
@@ -107,9 +112,10 @@ def format_time_with_both_zones(base_time: str, context: str = "") -> str:
     times = get_current_times()
     
     time_display = f"🕐 **current times** 🕐\n"
-    time_display += f"🇨🇿 **prague:** {times['prague']['full']}\n"  
-    time_display += f"🇺🇸 **new orleans:** {times['new_orleans']['full']}"
-    
+    time_display += f"🇨🇿 **prague:** {times['prague']['full']}\n"
+    time_display += f"🇺🇸 **new orleans:** {times['new_orleans']['full']}\n"
+    time_display += f"🇸🇬 **singapore:** {times['singapore']['full']}"
+
     if context:
         time_display = f"{context}\n\n{time_display}"
     
@@ -2574,7 +2580,7 @@ async def version(update: Update, context: CallbackContext) -> None:
         update: Telegram update object
         context: Callback context
     """
-    VERSION_NUMBER = "1.0.1"
+    VERSION_NUMBER = "1.1"
     try:
         version_info = (
             "🤖 **anselmbot version info** 🤖\n\n"
@@ -2591,7 +2597,7 @@ async def version(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         logger.error(f"Error in version command: {e}")
         await update.message.reply_text(
-            "🤖 **anselmbot** v1.0.0 by Anselm Long 💕\n"
+            f"🤖 **anselmbot** {VERSION_NUMBER} by Anselm Long 💕\n"
             "oops! something went wrong displaying version info 😅",
             parse_mode='Markdown'
         )
@@ -2695,6 +2701,8 @@ async def timezone(update: Update, context: CallbackContext) -> None:
             f"⏰ {times['prague']['full']}\n\n"
             f"🇺🇸 **new orleans, usa**\n" 
             f"⏰ {times['new_orleans']['full']}\n\n"
+            f"🇸🇬 **singapore**\n"
+            f"⏰ {times['singapore']['full']}\n\n"
             "💕 love knows no distance or time zone! ✨"
         )
         
@@ -2708,6 +2716,62 @@ async def timezone(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text(
             "**oops!** something went wrong checking the time 😅\n"
             "maybe time is relative after all! 💕",
+            parse_mode='Markdown'
+        )
+
+# Help command handler
+async def help_command(update: Update, context: CallbackContext) -> None:
+    """
+    Handle /help command and display available bot commands with descriptions.
+    
+    Args:
+        update: Telegram update object
+        context: Callback context
+    """
+    try:
+        help_message = (
+            "🤖 **haiiiii -- you need help?** 🤖\n\n"
+            "**available commands:**\n\n"
+            "🏠 **/start** - open the main bot menu with all features and interactive buttons\n\n"
+            "ℹ️ **/version** - show bot version number and author information\n\n"
+            "📋 **/reminders** - view all your active reminders (daily, one-time, and partner reminders)\n\n"
+            "🌍 **/timezone** - show current time in prague and new orleans with timezone info\n\n"
+            "❓ **/help** - show this help message with command descriptions\n\n"
+            "🚪 **/stop** or **/exit** - end your bot session and say goodbye\n\n"
+            "↩️ **/cancel** - return to the main menu from any conversation state\n\n"
+            "**main features (via /start menu):**\n"
+            "• 💕 flirty messages and rizz\n"
+            "• 📸 partner photos (role-based)\n"
+            "• 🫧 video bubbles from partner\n"
+            "• 💪 motivational pep talks\n"
+            "• 📊 relationship statistics\n"
+            "• ⏰ one-time reminders\n"
+            "• 📅 daily recurring reminders\n"
+            "• 💌 partner reminders (send reminders to each other)\n"
+            "• 📤 submit content for your partner\n"
+            "• 👤 role management (boyfriend/girlfriend)\n\n"
+            "💡 **tip:** use /start to access the interactive menu with buttons! ✨\n\n"
+            "💕 made with love for long-distance relationships! 💕"
+        )
+        
+        await update.message.reply_text(
+            help_message,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in help command: {e}")
+        await update.message.reply_text(
+            "🤖 **haiiiii -- you need help?** 🤖\n\n"
+            "**available commands:**\n"
+            "/start - open main menu\n"
+            "/version - show version info\n"
+            "/reminders - view active reminders\n"
+            "/timezone - show current times\n"
+            "/help - show this help\n"
+            "/stop - end bot session\n"
+            "/cancel - return to menu\n\n"
+            "💕 use /start for the full interactive experience! ✨",
             parse_mode='Markdown'
         )
 
@@ -2769,6 +2833,9 @@ def main():
     
     # Add timezone command handler
     application.add_handler(CommandHandler("timezone", timezone))
+    
+    # Add help command handler
+    application.add_handler(CommandHandler("help", help_command))
     
     logger.info("Bot started successfully! 🤖💕")
     logger.info("Bot will keep running and return to menu after each action")
