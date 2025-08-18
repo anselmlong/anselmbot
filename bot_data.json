@@ -27,7 +27,7 @@
     "u got this love! prague may be tough but i know you're stronger",
     "honestly do you even need a pep talk? you're so strong and capable already :) u defo have it in you to press on!!!",
     "RAHHHH u got this babygirl RAHHHH i love u so much and i know you can do this",
-    "yk what they say... tough times don't last, tough people do! ur super tuff girllll" 
+    "yk what they say... tough times don't last, tough people do! ur super tuff girllll"
   ],
   "restaurant_suggestions": [],
   "exchange_stats": {
@@ -38,24 +38,44 @@
   },
   "content": {
     "boyfriend": {
-      "image_paths": [],
-      "video_messages": []
+      "image_paths": [
+        "images/boyfriend/submitted_1755062968_AgACAgUA.jpg",
+        "images/boyfriend/submitted_1755162338_AgACAgUA.jpg",
+        "images/boyfriend/submitted_1755163024_AgACAgUA.jpg",
+        "images/boyfriend/submitted_1755163182_AgACAgUA.jpg",
+        "images/boyfriend/submitted_1755225544_AgACAgUA.jpg",
+        "images/boyfriend/submitted_1755225596_AgACAgUA.jpg"
+      ],
+      "video_messages": [
+        "videos/boyfriend/bubble_1754981795_DQACAgUA.mp4",
+        "videos/boyfriend/bubble_1755062932_DQACAgUA.mp4",
+        "videos/boyfriend/bubble_1755155177_DQACAgUA.mp4",
+        "videos/boyfriend/bubble_1755163084_DQACAgUA.mp4",
+        "videos/boyfriend/bubble_1755225504_DQACAgUA.mp4"
+      ]
     },
     "girlfriend": {
       "image_paths": [
-        "images/girlfriend/submitted_1753333269_AgACAgUA.jpg"
+        "images/girlfriend/submitted_1753333269_AgACAgUA.jpg",
+        "images/girlfriend/submitted_1754934995_AgACAgUA.jpg",
+        "images/girlfriend/submitted_1754981822_AgACAgUA.jpg",
+        "images/girlfriend/submitted_1755265265_AgACAgUA.jpg"
       ],
       "video_messages": [
         "videos/girlfriend/bubble_1753339794_DQACAgUA.mp4",
         "videos/girlfriend/bubble_1753346779_DQACAgUA.mp4",
         "videos/girlfriend/bubble_1753417665_DQACAgUA.mp4",
-        "videos/girlfriend/bubble_1754886245_DQACAgUA.mp4"
+        "videos/girlfriend/bubble_1754886245_DQACAgUA.mp4",
+        "videos/girlfriend/bubble_1755014693_DQACAgUA.mp4",
+        "videos/girlfriend/bubble_1755239638_DQACAgUA.mp4",
+        "videos/girlfriend/bubble_1755540935_DQACAgUA.mp4"
       ]
     }
   },
   "user_roles": {
     "495290408": "boyfriend",
-    "1648279852": "boyfriend"
+    "1648279852": "boyfriend",
+    "905452309": "girlfriend"
   },
   "image_paths": [
     "images/pic1.jpg",
@@ -70,27 +90,19 @@
     "images/pic10.jpg"
   ],
   "user_names": {
-    "495290408": "anselm"
+    "495290408": "anselm",
+    "905452309": "xuan"
   },
   "daily_reminders": {
-    "495290408": [
+    "495290408": []
+  },
+  "one_time_reminders": {
+    "905452309": [
       {
-        "text": "drink water!",
-        "time": "17:55",
-        "active": true,
-        "created_at": "2025-07-29T17:24:57.686177"
-      },
-      {
-        "text": "testing bot 1",
-        "time": "17:26",
-        "active": true,
-        "created_at": "2025-07-29T17:25:21.897240"
-      },
-      {
-        "text": "dasdjakdhas",
-        "time": "00:01",
-        "active": true,
-        "created_at": "2025-08-11T00:00:33.515935"
+        "text": "text my bf",
+        "datetime": "2025-08-12T15:00:00",
+        "sent": false,
+        "created_at": "2025-08-12T06:56:13.354006"
       }
     ]
   }
