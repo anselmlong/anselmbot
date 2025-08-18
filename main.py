@@ -824,6 +824,82 @@ def save_content_for_partner(content_type: str, content_data: any, submitter_rol
         logger.error(f"Error saving content for partner: {e}")
         return False
 
+def delete_content_for_user(content_type: str, content_path: str, user_role: str) -> bool:
+    """
+    Delete specific content for a user and remove the associated file.
+    
+    Args:
+        content_type (str): Type of content being deleted ('image_paths' or 'video_messages')
+        content_path (str): Path of the content to delete
+        user_role (str): Role of the user ('boyfriend' or 'girlfriend')
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        # Check if content structure exists
+        if 'content' not in data or user_role not in data['content']:
+            return False
+        
+        # Check if content type exists for user
+        if content_type not in data['content'][user_role]:
+            return False
+        
+        # Remove from JSON data
+        content_list = data['content'][user_role][content_type]
+        if content_path in content_list:
+            content_list.remove(content_path)
+            
+            # Try to delete the actual file
+            try:
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                full_path = os.path.join(script_dir, content_path)
+                if os.path.exists(full_path):
+                    os.remove(full_path)
+                    logger.info(f"Deleted file: {full_path}")
+            except Exception as file_error:
+                logger.warning(f"Could not delete file {content_path}: {file_error}")
+                # Continue anyway - JSON update is more important
+            
+            # Save updated JSON
+            return save_json_data('bot_data.json', data)
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"Error deleting content: {e}")
+        return False
+
+def get_content_index_by_path(content_type: str, content_path: str, user_role: str) -> int:
+    """
+    Get the index of content by its path for deletion purposes.
+    
+    Args:
+        content_type (str): Type of content ('image_paths' or 'video_messages')
+        content_path (str): Path of the content
+        user_role (str): Role of the user ('boyfriend' or 'girlfriend')
+        
+    Returns:
+        int: Index of the content or -1 if not found
+    """
+    try:
+        data = load_json_data('bot_data.json')
+        
+        if ('content' in data and 
+            user_role in data['content'] and 
+            content_type in data['content'][user_role]):
+            
+            content_list = data['content'][user_role][content_type]
+            if content_path in content_list:
+                return content_list.index(content_path)
+        
+        return -1
+    except Exception as e:
+        logger.error(f"Error getting content index: {e}")
+        return -1
+
 async def show_main_menu_from_query(query) -> int:
     """
     Helper function to show main menu from a callback query.
@@ -1019,10 +1095,12 @@ async def handle_picture(query) -> int:
         
         # Find available images
         available_images = []
+        available_paths = []
         for img_path in image_paths:
             full_path = os.path.join(script_dir, img_path)
             if os.path.exists(full_path):
                 available_images.append(full_path)
+                available_paths.append(img_path)
         
         if not available_images:
             keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
@@ -1033,22 +1111,28 @@ async def handle_picture(query) -> int:
             )
             return MENU
         
-        # Send random image
-        random_image = random.choice(available_images)
+        # Select random image
+        random_index = random.randint(0, len(available_images) - 1)
+        random_image = available_images[random_index]
+        image_path = available_paths[random_index]
         
         # Delete the original message first
         await query.delete_message()
         
-        # Create keyboard for back to menu
-        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        # Create keyboard with back to menu and delete option
+        keyboard = [
+            [InlineKeyboardButton("🗑️ delete this photo", callback_data=f"delete_image_{image_path}")],
+            [InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         # Send the photo
         with open(random_image, 'rb') as photo:
             await query.message.reply_photo(
                 photo=photo,
-                caption="here's a little something to brighten your day! 📸✨\n(submitted by your partner 💕)",
-                reply_markup=reply_markup
+                caption="**here's a little something to brighten your day!** 📸✨\n(submitted by your partner 💕)\n\n_you can delete this photo if you want! 🗑️_",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
             )
     
     except Exception as e:
@@ -1099,31 +1183,48 @@ async def handle_bubble(query) -> int:
             )
             return MENU
         
-        # Select random video
-        random_video = random.choice(video_messages)
+        # Find available videos
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        available_videos = []
+        available_paths = []
         
-        # Create inline keyboard with back to menu option
-        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        for video_path in video_messages:
+            full_path = os.path.join(script_dir, video_path)
+            if os.path.exists(full_path):
+                available_videos.append(full_path)
+                available_paths.append(video_path)
+        
+        if not available_videos:
+            keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text="🫧 video bubbles not found, but here's love anyway! 💕",
+                reply_markup=reply_markup
+            )
+            return MENU
+        
+        # Select random video
+        random_index = random.randint(0, len(available_videos) - 1)
+        random_video_path = available_videos[random_index]
+        video_path = available_paths[random_index]
+        
+        # Create inline keyboard with delete and back to menu options
+        keyboard = [
+            [InlineKeyboardButton("🗑️ delete this bubble", callback_data=f"delete_video_{video_path}")],
+            [InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        video_path = os.path.join(script_dir, random_video)
+        # Delete the original message first
+        await query.delete_message()
         
-        if os.path.exists(video_path):
-            # Delete the original message first
-            await query.delete_message()
-            
-            # Send the video
-            with open(video_path, 'rb') as video:
-                await query.message.reply_video(
-                    video=video,
-                    caption="🫧 here's a video bubble from your partner! 💕✨",
-                    reply_markup=reply_markup
-                )
-        else:
-            await query.edit_message_text(
-                text="🫧 video bubble not found, but here's love anyway! 💕",
-                reply_markup=reply_markup
+        # Send the video
+        with open(random_video_path, 'rb') as video:
+            await query.message.reply_video(
+                video=video,
+                caption="🫧 **here's a video bubble from your partner!** 💕✨\n\n_you can delete this bubble if you want! �️_",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
             )
     
     except Exception as e:
@@ -2300,6 +2401,191 @@ async def process_video_upload(update: Update, context: CallbackContext) -> int:
     
     return MENU
 
+# Content deletion handlers
+async def handle_delete_image(query, image_path: str) -> int:
+    """
+    Handle image deletion request.
+    
+    Args:
+        query: Telegram callback query object
+        image_path: Path of the image to delete
+        
+    Returns:
+        int: MENU state
+    """
+    try:
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        
+        if not user_role:
+            await query.answer("⚠️ role not found!")
+            return await show_main_menu_from_query(query)
+        
+        # Confirm deletion
+        keyboard = [
+            [InlineKeyboardButton("✅ yes, delete it", callback_data=f"confirm_delete_image_{image_path}")],
+            [InlineKeyboardButton("❌ no, keep it", callback_data="back_to_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_caption(
+            caption="🗑️ **are you sure you want to delete this photo?**\n\n⚠️ this action cannot be undone! the photo will be permanently removed for both you and your partner.\n\n**choose carefully! 💭**",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in handle_delete_image: {e}")
+        await query.answer("❌ error occurred")
+        return await show_main_menu_from_query(query)
+    
+    return MENU
+
+async def handle_delete_video(query, video_path: str) -> int:
+    """
+    Handle video deletion request.
+    
+    Args:
+        query: Telegram callback query object
+        video_path: Path of the video to delete
+        
+    Returns:
+        int: MENU state
+    """
+    try:
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        
+        if not user_role:
+            await query.answer("⚠️ role not found!")
+            return await show_main_menu_from_query(query)
+        
+        # Confirm deletion
+        keyboard = [
+            [InlineKeyboardButton("✅ yes, delete it", callback_data=f"confirm_delete_video_{video_path}")],
+            [InlineKeyboardButton("❌ no, keep it", callback_data="back_to_menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_caption(
+            caption="🗑️ **are you sure you want to delete this bubble?**\n\n⚠️ this action cannot be undone! the bubble will be permanently removed for both you and your partner.\n\n**choose carefully! 💭**",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in handle_delete_video: {e}")
+        await query.answer("❌ error occurred")
+        return await show_main_menu_from_query(query)
+    
+    return MENU
+
+async def confirm_delete_image(query, image_path: str) -> int:
+    """
+    Confirm and execute image deletion.
+    
+    Args:
+        query: Telegram callback query object
+        image_path: Path of the image to delete
+        
+    Returns:
+        int: MENU state
+    """
+    try:
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        
+        if not user_role:
+            await query.answer("⚠️ role not found!")
+            return await show_main_menu_from_query(query)
+        
+        # Perform deletion
+        success = delete_content_for_user('image_paths', image_path, user_role)
+        
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if success:
+            await query.edit_message_caption(
+                caption="✅ **photo deleted successfully!** 🗑️\n\nthe photo has been permanently removed from your collection and deleted from the server! 📸💔",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            await query.answer("✅ photo deleted!")
+        else:
+            await query.edit_message_caption(
+                caption="❌ **failed to delete photo** 😅\n\nsomething went wrong, but don't worry - the photo is still safe! 📸💕",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            await query.answer("❌ deletion failed")
+        
+    except Exception as e:
+        logger.error(f"Error confirming image deletion: {e}")
+        await query.answer("❌ error occurred")
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_caption(
+            caption="❌ **something went wrong during deletion** 😅\n\nyour photo is probably still safe though! 📸💕",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    return MENU
+
+async def confirm_delete_video(query, video_path: str) -> int:
+    """
+    Confirm and execute video deletion.
+    
+    Args:
+        query: Telegram callback query object
+        video_path: Path of the video to delete
+        
+    Returns:
+        int: MENU state
+    """
+    try:
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        
+        if not user_role:
+            await query.answer("⚠️ role not found!")
+            return await show_main_menu_from_query(query)
+        
+        # Perform deletion
+        success = delete_content_for_user('video_messages', video_path, user_role)
+        
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if success:
+            await query.edit_message_caption(
+                caption="✅ **bubble deleted successfully!** 🗑️\n\nthe bubble has been permanently removed from your collection and deleted from the server! 🫧💔",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            await query.answer("✅ bubble deleted!")
+        else:
+            await query.edit_message_caption(
+                caption="❌ **failed to delete bubble** 😅\n\nsomething went wrong, but don't worry - the bubble is still safe! 🫧💕",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            await query.answer("❌ deletion failed")
+        
+    except Exception as e:
+        logger.error(f"Error confirming video deletion: {e}")
+        await query.answer("❌ error occurred")
+        keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_caption(
+            caption="❌ **something went wrong during deletion** 😅\n\nyour bubble is probably still safe though! 🫧💕",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    return MENU
+
 async def process_text(update: Update, context: CallbackContext) -> int:
     """
     Process text input from user.
@@ -2475,6 +2761,18 @@ async def button(update: Update, context: CallbackContext) -> int:
         return await handle_submit_bubble(query)
     elif query.data == "partner_reminder":
         return await handle_partner_reminder(query)
+    elif query.data.startswith("delete_image_"):
+        image_path = query.data.replace("delete_image_", "")
+        return await handle_delete_image(query, image_path)
+    elif query.data.startswith("delete_video_"):
+        video_path = query.data.replace("delete_video_", "")
+        return await handle_delete_video(query, video_path)
+    elif query.data.startswith("confirm_delete_image_"):
+        image_path = query.data.replace("confirm_delete_image_", "")
+        return await confirm_delete_image(query, image_path)
+    elif query.data.startswith("confirm_delete_video_"):
+        video_path = query.data.replace("confirm_delete_video_", "")
+        return await confirm_delete_video(query, video_path)
     elif query.data == "back_to_menu":
         return await show_main_menu_from_query(query)
     elif query.data == "exit":
@@ -2741,14 +3039,15 @@ async def help_command(update: Update, context: CallbackContext) -> None:
             "↩️ **/cancel** - return to the main menu from any conversation state\n\n"
             "**main features (via /start menu):**\n"
             "• 💕 flirty messages and rizz\n"
-            "• 📸 partner photos (role-based)\n"
-            "• 🫧 video bubbles from partner\n"
+            "• 📸 partner photos (role-based) with delete option\n"
+            "• 🫧 video bubbles from partner with delete option\n"
             "• 💪 motivational pep talks\n"
             "• 📊 relationship statistics\n"
             "• ⏰ one-time reminders\n"
             "• 📅 daily recurring reminders\n"
             "• 💌 partner reminders (send reminders to each other)\n"
             "• 📤 submit content for your partner\n"
+            "• 🗑️ delete viewed photos and bubbles permanently\n"
             "• 👤 role management (boyfriend/girlfriend)\n\n"
             "💡 **tip:** use /start to access the interactive menu with buttons! ✨\n\n"
             "💕 made with love for long-distance relationships! 💕"
