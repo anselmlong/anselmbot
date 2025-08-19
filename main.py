@@ -1116,6 +1116,9 @@ async def handle_picture(query) -> int:
         random_image = available_images[random_index]
         image_path = available_paths[random_index]
         
+        # Extract filename for shorter callback data
+        image_filename = os.path.basename(image_path)
+        
         # Delete the original message first
         await query.delete_message()
         
@@ -1139,10 +1142,19 @@ async def handle_picture(query) -> int:
         logger.error(f"Error in handle_picture: {e}")
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="oops! something went wrong with the camera 📸💔",
-            reply_markup=reply_markup
-        )
+        
+        try:
+            # Try to edit the message if it still exists
+            await query.edit_message_text(
+                text="oops! something went wrong with the camera 📸💔",
+                reply_markup=reply_markup
+            )
+        except Exception as edit_error:
+            # If editing fails (message was deleted), send a new message
+            await query.message.reply_text(
+                text="oops! something went wrong with the camera 📸💔",
+                reply_markup=reply_markup
+            )
     
     return MENU
 
@@ -1235,10 +1247,19 @@ async def handle_bubble(query) -> int:
         logger.error(f"Error in handle_bubble: {e}")
         keyboard = [[InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            text="🫧 *pop* here's a bubble full of love even though something went wrong! 💕",
-            reply_markup=reply_markup
-        )
+        
+        try:
+            # Try to edit the message if it still exists
+            await query.edit_message_text(
+                text="🫧 *pop* here's a bubble full of love even though something went wrong! 💕",
+                reply_markup=reply_markup
+            )
+        except Exception as edit_error:
+            # If editing fails (message was deleted), send a new message
+            await query.message.reply_text(
+                text="🫧 *pop* here's a bubble full of love even though something went wrong! 💕",
+                reply_markup=reply_markup
+            )
     
     return MENU
 
