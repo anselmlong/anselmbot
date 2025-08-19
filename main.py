@@ -1121,7 +1121,7 @@ async def handle_picture(query) -> int:
         
         # Create keyboard with back to menu and delete option
         keyboard = [
-            [InlineKeyboardButton("🗑️ delete this photo", callback_data=f"delete_image_{image_path}")],
+            [InlineKeyboardButton("🗑️ delete this photo", callback_data=f"delete_image_{image_filename}")],
             [InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1208,9 +1208,13 @@ async def handle_bubble(query) -> int:
         random_video_path = available_videos[random_index]
         video_path = available_paths[random_index]
         
+        # Store the video path in context for later deletion
+        # We'll use a simple approach: store just the filename without directory
+        video_filename = os.path.basename(video_path)
+        
         # Create inline keyboard with delete and back to menu options
         keyboard = [
-            [InlineKeyboardButton("🗑️ delete this bubble", callback_data=f"delete_video_{video_path}")],
+            [InlineKeyboardButton("🗑️ delete this bubble", callback_data=f"delete_video_{video_filename}")],
             [InlineKeyboardButton("🔙 back to menu", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -2421,18 +2425,41 @@ async def handle_delete_image(query, image_path: str) -> int:
             await query.answer("⚠️ role not found!")
             return await show_main_menu_from_query(query)
         
-        # Confirm deletion
+        # Confirm deletion - use just filename for shorter callback data
+        image_filename = os.path.basename(image_path)
         keyboard = [
-            [InlineKeyboardButton("✅ yes, delete it", callback_data=f"confirm_delete_image_{image_path}")],
+            [InlineKeyboardButton("✅ yes, delete it", callback_data=f"confirm_delete_image_{image_filename}")],
             [InlineKeyboardButton("❌ no, keep it", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_caption(
-            caption="🗑️ **are you sure you want to delete this photo?**\n\n⚠️ this action cannot be undone! the photo will be permanently removed for both you and your partner.\n\n**choose carefully! 💭**",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
+        confirmation_text = ("🗑️ **are you sure you want to delete this photo?**\n\n"
+                            "⚠️ this action cannot be undone! the photo will be permanently removed for both you and your partner.\n\n"
+                            "**choose carefully! 💭**")
+        
+        # Check if the message has a caption that can be edited
+        if query.message.caption is not None:
+            # Message has caption, we can edit it
+            await query.edit_message_caption(
+                caption=confirmation_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        elif query.message.text is not None:
+            # Message has text, we can edit it
+            await query.edit_message_text(
+                text=confirmation_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        else:
+            # Message is media without caption, send new message and delete original
+            await query.message.reply_text(
+                confirmation_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            await query.message.delete()
         
     except Exception as e:
         logger.error(f"Error in handle_delete_image: {e}")
@@ -2460,18 +2487,41 @@ async def handle_delete_video(query, video_path: str) -> int:
             await query.answer("⚠️ role not found!")
             return await show_main_menu_from_query(query)
         
-        # Confirm deletion
+        # Confirm deletion - use just filename for shorter callback data
+        video_filename = os.path.basename(video_path)
         keyboard = [
-            [InlineKeyboardButton("✅ yes, delete it", callback_data=f"confirm_delete_video_{video_path}")],
+            [InlineKeyboardButton("✅ yes, delete it", callback_data=f"confirm_delete_video_{video_filename}")],
             [InlineKeyboardButton("❌ no, keep it", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_caption(
-            caption="🗑️ **are you sure you want to delete this bubble?**\n\n⚠️ this action cannot be undone! the bubble will be permanently removed for both you and your partner.\n\n**choose carefully! 💭**",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
+        confirmation_text = ("🗑️ **are you sure you want to delete this bubble?**\n\n"
+                            "⚠️ this action cannot be undone! the bubble will be permanently removed for both you and your partner.\n\n"
+                            "**choose carefully! 💭**")
+        
+        # Check if the message has a caption that can be edited
+        if query.message.caption is not None:
+            # Message has caption, we can edit it
+            await query.edit_message_caption(
+                caption=confirmation_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        elif query.message.text is not None:
+            # Message has text, we can edit it
+            await query.edit_message_text(
+                text=confirmation_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        else:
+            # Message is media without caption, send new message and delete original
+            await query.message.reply_text(
+                confirmation_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            await query.message.delete()
         
     except Exception as e:
         logger.error(f"Error in handle_delete_video: {e}")
@@ -2762,17 +2812,49 @@ async def button(update: Update, context: CallbackContext) -> int:
     elif query.data == "partner_reminder":
         return await handle_partner_reminder(query)
     elif query.data.startswith("delete_image_"):
-        image_path = query.data.replace("delete_image_", "")
-        return await handle_delete_image(query, image_path)
+        image_filename = query.data.replace("delete_image_", "")
+        # Reconstruct full path based on user role
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        if user_role:
+            image_path = f"images/{user_role}/{image_filename}"
+            return await handle_delete_image(query, image_path)
+        else:
+            await query.answer("⚠️ Role not found!")
+            return await show_main_menu_from_query(query)
     elif query.data.startswith("delete_video_"):
-        video_path = query.data.replace("delete_video_", "")
-        return await handle_delete_video(query, video_path)
+        video_filename = query.data.replace("delete_video_", "")
+        # Reconstruct full path based on user role
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        if user_role:
+            video_path = f"videos/{user_role}/{video_filename}"
+            return await handle_delete_video(query, video_path)
+        else:
+            await query.answer("⚠️ Role not found!")
+            return await show_main_menu_from_query(query)
     elif query.data.startswith("confirm_delete_image_"):
-        image_path = query.data.replace("confirm_delete_image_", "")
-        return await confirm_delete_image(query, image_path)
+        image_filename = query.data.replace("confirm_delete_image_", "")
+        # Reconstruct full path based on user role
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        if user_role:
+            image_path = f"images/{user_role}/{image_filename}"
+            return await confirm_delete_image(query, image_path)
+        else:
+            await query.answer("⚠️ Role not found!")
+            return await show_main_menu_from_query(query)
     elif query.data.startswith("confirm_delete_video_"):
-        video_path = query.data.replace("confirm_delete_video_", "")
-        return await confirm_delete_video(query, video_path)
+        video_filename = query.data.replace("confirm_delete_video_", "")
+        # Reconstruct full path based on user role
+        user_id = query.from_user.id
+        user_role = get_user_role(user_id)
+        if user_role:
+            video_path = f"videos/{user_role}/{video_filename}"
+            return await confirm_delete_video(query, video_path)
+        else:
+            await query.answer("⚠️ Role not found!")
+            return await show_main_menu_from_query(query)
     elif query.data == "back_to_menu":
         return await show_main_menu_from_query(query)
     elif query.data == "exit":
